@@ -104,6 +104,9 @@
     user-select:none;
     -webkit-user-select:none;
     -webkit-touch-callout:none;
+    -moz-user-select:none;
+    -ms-user-select:none;
+    -webkit-user-drag:none;
     touch-action: manipulation;
     transition:transform .06s ease,background .08s ease,box-shadow .08s ease;
   }
@@ -942,6 +945,11 @@ function bindPressTarget(el, action) {
     releaseAction(action);
   };
 
+  // Prevent desktop browsers from starting text selection while the button is held.
+  // Keep touch gestures available so mobile pinch-zoom is not blocked.
+  el.addEventListener("selectstart",(ev)=>ev.preventDefault());
+  el.addEventListener("dragstart",(ev)=>ev.preventDefault());
+  el.addEventListener("dblclick",(ev)=>ev.preventDefault());
   el.addEventListener("pointerdown",start,{passive:false});
   el.addEventListener("pointerup",end,{passive:false});
   el.addEventListener("pointercancel",end,{passive:false});
