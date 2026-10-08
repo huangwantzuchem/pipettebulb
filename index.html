@@ -125,6 +125,20 @@
     -webkit-user-select:none !important;
     -webkit-touch-callout:none !important;
   }
+
+  /* iPad Chrome/WebKit: while an A/S/E button is held, disable native text selection
+     at the document level. This is limited to the button press and does not affect
+     Canvas pinch-zoom. */
+  html.button-pressing,
+  html.button-pressing body,
+  html.button-pressing .op-btn,
+  html.button-pressing .op-btn *{
+    user-select:none !important;
+    -webkit-user-select:none !important;
+    -webkit-touch-callout:none !important;
+    -webkit-user-drag:none !important;
+  }
+
   .op-btn .key{
     display:inline-flex;
     width:38px;height:38px;
@@ -234,13 +248,13 @@
       <h2>安全吸球操作按鈕</h2>
       <div class="stage">
         <div class="controls">
-          <button class="op-btn" type="button" data-action="A">
+          <button class="op-btn" type="button" draggable="false" data-action="A">
             <span class="key">A</span>let out Air
           </button>
-          <button class="op-btn" type="button" data-action="S">
+          <button class="op-btn" type="button" draggable="false" data-action="S">
             <span class="key">S</span>Suck in liquid
           </button>
-          <button class="op-btn" type="button" data-action="E">
+          <button class="op-btn" type="button" draggable="false" data-action="E">
             <span class="key">E</span>Empty the pipette
           </button>
         </div>
@@ -1015,11 +1029,16 @@ document.addEventListener("contextmenu", (ev)=>{
 actionButtons.forEach(btn=>{
   const blockSelection = (ev)=>{
     opButtonTouchActive = true;
+    document.documentElement.classList.add("button-pressing");
     ev.preventDefault();
     clearOpButtonSelection();
   };
-  const endSelectionBlock = ()=>{
+  const endSelectionBlock = (ev)=>{
+    /* iPad Chrome can emit pointercancel while the finger is still down.
+       Do not re-enable selection on pointercancel; wait for touchend/pointerup. */
+    if (ev && ev.type === "pointercancel" && ev.pointerType === "touch") return;
     opButtonTouchActive = false;
+    document.documentElement.classList.remove("button-pressing");
     clearOpButtonSelection();
   };
 
