@@ -527,11 +527,12 @@ function drawPipette(ctx, x, y, scale, s) {
   liquid.addColorStop(0,"rgba(142,202,230,.76)");
   liquid.addColorStop(1,"rgba(33,158,188,.40)");
   ctx.fillStyle = liquid;
-  ctx.fillRect(490,yLiquid,110,880);
+  ctx.fillRect(490,yLiquid-11,110,891);
 
+  /* yLiquid 定義為凹形彎月面的最低點；左右兩側對稱提高 11 px */
   ctx.beginPath();
-  ctx.moveTo(500,yLiquid);
-  ctx.quadraticCurveTo(540,yLiquid+11,580,yLiquid);
+  ctx.moveTo(500,yLiquid-11);
+  ctx.quadraticCurveTo(540,yLiquid,580,yLiquid-11);
   ctx.lineWidth = 4;
   ctx.strokeStyle = "#219ebc";
   ctx.stroke();
@@ -554,8 +555,8 @@ function drawPipette(ctx, x, y, scale, s) {
   ctx.save();
   ctx.clip(tube);
   ctx.beginPath();
-  ctx.moveTo(500,yLiquid);
-  ctx.quadraticCurveTo(540,yLiquid+11,580,yLiquid);
+  ctx.moveTo(500,yLiquid-11);
+  ctx.quadraticCurveTo(540,yLiquid,580,yLiquid-11);
   ctx.lineWidth = 4;
   ctx.strokeStyle = "#219ebc";
   ctx.stroke();
