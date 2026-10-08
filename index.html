@@ -103,9 +103,25 @@
     cursor:pointer;
     user-select:none;
     -webkit-user-select:none;
+    -moz-user-select:none;
+    -ms-user-select:none;
     -webkit-touch-callout:none;
-    touch-action: manipulation;
+    touch-action:none;
     transition:transform .06s ease,background .08s ease,box-shadow .08s ease;
+  }
+  .op-btn, .op-btn *{
+    user-select:none !important;
+    -webkit-user-select:none !important;
+    -moz-user-select:none !important;
+    -ms-user-select:none !important;
+    -webkit-touch-callout:none !important;
+  }
+  .op-btn *,
+  .controls,
+  .controls *{
+    user-select:none !important;
+    -webkit-user-select:none !important;
+    -webkit-touch-callout:none !important;
   }
   .op-btn .key{
     display:inline-flex;
@@ -927,7 +943,9 @@ function bindPressTarget(el, action) {
   let pointerActive = false;
 
   const start = (ev) => {
-    if (ev.pointerType !== "touch") ev.preventDefault();
+    /* A/S/E 實體操作按鈕：連 touch 也阻止瀏覽器預設長按選字。
+       只作用於區域 3 按鈕，不影響 Canvas 上的雙指縮放。 */
+    ev.preventDefault();
     pointerActive = true;
     if (ev.pointerId != null && el.setPointerCapture) {
       try { el.setPointerCapture(ev.pointerId); } catch(e) {}
@@ -953,7 +971,13 @@ function bindPressTarget(el, action) {
   },{passive:false});
 }
 
-actionButtons.forEach(btn=>bindPressTarget(btn,btn.dataset.action));
+actionButtons.forEach(btn=>{
+  bindPressTarget(btn,btn.dataset.action);
+  /* iPad/Safari: CSS user-select alone may not suppress native long-press selection.
+     Region 3 buttons are dedicated controls, so consume touch gestures on the button itself. */
+  btn.addEventListener("touchstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+  btn.addEventListener("touchmove",  (ev)=>{ ev.preventDefault(); }, {passive:false});
+});
 
 /* 防止平板瀏覽器長按 A/S/E 時啟動文字選取。
    CSS 的 user-select:none 在部分平板瀏覽器/觸控模式下仍可能被長按選取機制繞過，
