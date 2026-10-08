@@ -17,7 +17,13 @@
     --shadow:0 5px 18px rgba(31,65,87,.10);
   }
   *{box-sizing:border-box}
-  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink)}
+  html,body{
+    margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+    -webkit-user-select:none !important;
+    user-select:none !important;
+    -webkit-touch-callout:none !important;
+    -webkit-user-drag:none !important;
+  }
   body{
     font-family:Arial,"Noto Sans TC","Microsoft JhengHei",sans-serif;
     overflow-x:hidden;
@@ -997,15 +1003,15 @@ actionButtons.forEach(btn=>{
 });
 
 document.addEventListener("selectstart", (ev)=>{
-  if (ev.target.closest && ev.target.closest(".op-btn")) {
-    ev.preventDefault();
-  }
+  if (ev.target.closest && ev.target.closest(".op-btn")) ev.preventDefault();
+},{passive:false});
+
+document.addEventListener("selectionstart", (ev)=>{
+  if (ev.target.closest && ev.target.closest(".op-btn")) ev.preventDefault();
 },{passive:false});
 
 document.addEventListener("contextmenu", (ev)=>{
-  if (ev.target.closest && ev.target.closest(".op-btn")) {
-    ev.preventDefault();
-  }
+  if (ev.target.closest && ev.target.closest(".op-btn")) ev.preventDefault();
 },{passive:false});
 
 // Safari/iPadOS 偶爾會在長按後才建立 Selection；若選取來源是操作按鈕，立即清除。
