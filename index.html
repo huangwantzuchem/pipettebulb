@@ -104,9 +104,6 @@
     user-select:none;
     -webkit-user-select:none;
     -webkit-touch-callout:none;
-    -moz-user-select:none;
-    -ms-user-select:none;
-    -webkit-user-drag:none;
     touch-action: manipulation;
     transition:transform .06s ease,background .08s ease,box-shadow .08s ease;
   }
@@ -945,11 +942,6 @@ function bindPressTarget(el, action) {
     releaseAction(action);
   };
 
-  // Prevent desktop browsers from starting text selection while the button is held.
-  // Keep touch gestures available so mobile pinch-zoom is not blocked.
-  el.addEventListener("selectstart",(ev)=>ev.preventDefault());
-  el.addEventListener("dragstart",(ev)=>ev.preventDefault());
-  el.addEventListener("dblclick",(ev)=>ev.preventDefault());
   el.addEventListener("pointerdown",start,{passive:false});
   el.addEventListener("pointerup",end,{passive:false});
   el.addEventListener("pointercancel",end,{passive:false});
@@ -962,6 +954,22 @@ function bindPressTarget(el, action) {
 }
 
 actionButtons.forEach(btn=>bindPressTarget(btn,btn.dataset.action));
+
+/* 防止平板瀏覽器長按 A/S/E 時啟動文字選取。
+   CSS 的 user-select:none 在部分平板瀏覽器/觸控模式下仍可能被長按選取機制繞過，
+   因此再用 selectstart + contextmenu 明確攔截按鈕上的文字選取。 */
+document.addEventListener("selectstart", (ev)=>{
+  if (ev.target.closest && ev.target.closest(".op-btn")) {
+    ev.preventDefault();
+  }
+},{passive:false});
+
+document.addEventListener("contextmenu", (ev)=>{
+  if (ev.target.closest && ev.target.closest(".op-btn")) {
+    ev.preventDefault();
+  }
+},{passive:false});
+
 
 /* =========================================================
    主視圖 / 放大圖中的 A/S/E 圓形按鈕熱區
