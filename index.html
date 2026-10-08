@@ -106,12 +106,13 @@
     -moz-user-select:none;
     -ms-user-select:none;
     -webkit-touch-callout:none;
-    -webkit-user-drag:none;
     -webkit-tap-highlight-color:transparent;
+    -webkit-user-drag:none;
     touch-action:none;
     transition:transform .06s ease,background .08s ease,box-shadow .08s ease;
   }
-  .op-btn, .op-btn *{
+  .op-btn, .op-btn *,
+  .op-btn::before, .op-btn::after{
     user-select:none !important;
     -webkit-user-select:none !important;
     -moz-user-select:none !important;
@@ -125,20 +126,6 @@
     -webkit-user-select:none !important;
     -webkit-touch-callout:none !important;
   }
-
-  /* iPad Chrome/WebKit: while an A/S/E button is held, disable native text selection
-     at the document level. This is limited to the button press and does not affect
-     Canvas pinch-zoom. */
-  html.button-pressing,
-  html.button-pressing body,
-  html.button-pressing .op-btn,
-  html.button-pressing .op-btn *{
-    user-select:none !important;
-    -webkit-user-select:none !important;
-    -webkit-touch-callout:none !important;
-    -webkit-user-drag:none !important;
-  }
-
   .op-btn .key{
     display:inline-flex;
     width:38px;height:38px;
@@ -248,13 +235,13 @@
       <h2>安全吸球操作按鈕</h2>
       <div class="stage">
         <div class="controls">
-          <button class="op-btn" type="button" draggable="false" data-action="A">
+          <button class="op-btn" type="button" data-action="A">
             <span class="key">A</span>let out Air
           </button>
-          <button class="op-btn" type="button" draggable="false" data-action="S">
+          <button class="op-btn" type="button" data-action="S">
             <span class="key">S</span>Suck in liquid
           </button>
-          <button class="op-btn" type="button" draggable="false" data-action="E">
+          <button class="op-btn" type="button" data-action="E">
             <span class="key">E</span>Empty the pipette
           </button>
         </div>
@@ -995,59 +982,41 @@ actionButtons.forEach(btn=>{
   btn.addEventListener("touchmove",  (ev)=>{ ev.preventDefault(); }, {passive:false});
 });
 
-/* iPadOS/Safari 的原生長按選取保護。
-   有些觸控模式不一定會把原生選取完整交給 selectstart，
-   因此在 A/S/E 被按住期間，同步攔截選取並清除目前 selection。 */
-let opButtonTouchActive = false;
+/* 防止平板瀏覽器長按 A/S/E 時啟動文字選取。
+   iPad/iPadOS Safari 的長按選取行為有時不完全遵守 CSS user-select:none，
+   因此按鈕同時使用 CSS、touch/pointer preventDefault，以及選取事件攔截。 */
 
-function clearOpButtonSelection() {
-  const sel = window.getSelection ? window.getSelection() : null;
-  if (sel && sel.rangeCount) {
-    try { sel.removeAllRanges(); } catch(e) {}
-  }
-}
+// 觸控裝置上，按住 A/S/E 時明確阻止 Safari 進入原生文字選取流程。
+actionButtons.forEach(btn=>{
+  btn.addEventListener("pointerdown", (ev)=>{
+    if (ev.pointerType === "touch" || ev.pointerType === "pen") {
+      ev.preventDefault();
+    }
+  }, {passive:false});
+  btn.addEventListener("dragstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+});
 
 document.addEventListener("selectstart", (ev)=>{
-  const target = ev.target;
-  if ((target.closest && target.closest(".op-btn")) || opButtonTouchActive) {
+  if (ev.target.closest && ev.target.closest(".op-btn")) {
     ev.preventDefault();
-    clearOpButtonSelection();
   }
 },{passive:false});
-
-document.addEventListener("selectionchange", ()=>{
-  if (opButtonTouchActive) clearOpButtonSelection();
-});
 
 document.addEventListener("contextmenu", (ev)=>{
   if (ev.target.closest && ev.target.closest(".op-btn")) {
     ev.preventDefault();
-    clearOpButtonSelection();
   }
 },{passive:false});
 
-actionButtons.forEach(btn=>{
-  const blockSelection = (ev)=>{
-    opButtonTouchActive = true;
-    document.documentElement.classList.add("button-pressing");
-    ev.preventDefault();
-    clearOpButtonSelection();
-  };
-  const endSelectionBlock = (ev)=>{
-    /* iPad Chrome can emit pointercancel while the finger is still down.
-       Do not re-enable selection on pointercancel; wait for touchend/pointerup. */
-    if (ev && ev.type === "pointercancel" && ev.pointerType === "touch") return;
-    opButtonTouchActive = false;
-    document.documentElement.classList.remove("button-pressing");
-    clearOpButtonSelection();
-  };
-
-  btn.addEventListener("pointerdown", blockSelection, {passive:false});
-  btn.addEventListener("pointerup", endSelectionBlock, {passive:false});
-  btn.addEventListener("pointercancel", endSelectionBlock, {passive:false});
-  btn.addEventListener("touchstart", blockSelection, {passive:false});
-  btn.addEventListener("touchend", endSelectionBlock, {passive:false});
-  btn.addEventListener("touchcancel", endSelectionBlock, {passive:false});
+// Safari/iPadOS 偶爾會在長按後才建立 Selection；若選取來源是操作按鈕，立即清除。
+document.addEventListener("selectionchange", ()=>{
+  const sel=document.getSelection && document.getSelection();
+  if(!sel || sel.rangeCount===0)return;
+  const node=sel.anchorNode;
+  const el=node && (node.nodeType===1 ? node : node.parentElement);
+  if(el && el.closest && el.closest(".op-btn")){
+    sel.removeAllRanges();
+  }
 });
 
 
