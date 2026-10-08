@@ -296,6 +296,7 @@ const CONFIG = {
   SUCK_RATE: 5.0,             // mL/s
   EMPTY_RATE: 5.0,            // mL/s
   BULB_DEFLATE_RATE: 1 / 3,   // 約 3 秒由 0 → 1
+  SUCTION_PER_FULL_BULB: 40.0, // 吸球完全壓縮的理論吸液量；不等於 25 mL 刻度上限
   MAX_PIPETTE_VOLUME: 35.0,
   WARNING_ON: 25.5,
   WARNING_OFF: 25.0,
@@ -1143,8 +1144,11 @@ function update(dt) {
 
       state.pipetteVolume += Math.max(0,dv);
 
-      /* dDeflation = -dVolume / 25 */
-      state.bulbDeflation -= Math.max(0,dv)/25;
+      /* 吸球壓縮量與吸液量獨立於 25 mL 刻度：
+         完全壓縮一次的吸液能力設定為 40 mL。
+         因此吸到 25 mL 時，吸球仍可能保持部分壓縮；
+         若只壓縮一半，則可能需要再次按 A 才能繼續吸。 */
+      state.bulbDeflation -= Math.max(0,dv)/CONFIG.SUCTION_PER_FULL_BULB;
       state.bulbDeflation=clamp(state.bulbDeflation,0,1);
     }
   }
