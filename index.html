@@ -293,6 +293,7 @@
 
 <script>
 "use strict";
+/* v17：修正內嵌瀏覽器移動鎖定；完整吸球回彈對應 40 mL，總吸液上限 40 mL。 */
 
 /* =========================================================
    核心狀態
@@ -306,6 +307,7 @@ const state = {
   displayAVolume:100.0,displayBVolume:0.0,
   firstMoveUnlocked:false,
   needsAAfterBulbRecovered:false,
+  currentBeaker:"A",
   deviceX:-160,deviceY:340,moving:false,
   moveToX:-160,moveToY:340,movePhase:"idle",moveTargetBeaker:null,
   moveLiftY:55,dragCandidate:null,longPressTimer:null,dragStarted:false
@@ -319,7 +321,7 @@ const CONFIG = {
   EMPTY_RATE: 5.0,            // mL/s
   BULB_DEFLATE_RATE: 1 / 3,   // 約 3 秒由 0 → 1
   SUCTION_PER_FULL_BULB: 40.0, // 吸球完全壓縮的理論吸液量；不等於 25 mL 刻度上限
-  MAX_PIPETTE_VOLUME: 35.0,
+  MAX_PIPETTE_VOLUME: 40.0,
   WARNING_ON: 25.5,
   WARNING_OFF: 25.0,
   BEAKER_INITIAL: 100.0,
@@ -1166,8 +1168,10 @@ function canSuck() {
   return vol>1e-6 && tip.y >= beakerSurfaceY(which)+0.5 && tip.y < beakerBottomY()-8;
 }
 function canEmpty() {
+  /* 以移動完成後記錄的目標燒杯判定，不依賴吸量管尖端的即時座標反推。
+     可避免內嵌瀏覽器動畫幀率／觸控座標差異造成 E 被誤判為不可操作。 */
   if(state.moving || state.pipetteVolume<=1e-6)return false;
-  return !!targetBeakerAtX(tipWorld().x);
+  return state.currentBeaker==="A" || state.currentBeaker==="B";
 }
 function updateActionAvailability() {
   /* 移動時只鎖 E；S 仍可按住讓吸球回彈，但不會吸液。 */
@@ -1306,8 +1310,10 @@ window.addEventListener("blur",()=>{
    ========================================================= */
 let lastTime = performance.now();
 
-function update(dt) {
-  advanceMove(dt);
+function update(dt, moveDt=dt) {
+  /* 移動動畫使用未被一般物理步進限速的時間差；內嵌瀏覽器降低 rAF 頻率時，
+     不會因 dt 被限制在 0.05 秒而讓 state.moving 長時間保持 true。 */
+  advanceMove(moveDt);
   updateActionAvailability();
 
   if(state.isAPressed && !state.moving) {
@@ -1315,12 +1321,16 @@ function update(dt) {
     if(state.bulbDeflation>1e-6) state.needsAAfterBulbRecovered=false;
   }
 
-  /* 按住 S 時吸球始終回彈；只有尖端浸在有液體的燒杯內才同步吸液。 */
+  /* S 使吸球回彈；完整回彈一次的理論吸液量由 SUCTION_PER_FULL_BULB 決定（40 mL）。 */
+  let bulbRecoveryThisFrame=0;
+  let bulbRecoveredThisFrame=false;
   if(state.isSPressed) {
+    const beforeRecovery=state.bulbDeflation;
     state.bulbDeflation=clamp(state.bulbDeflation-CONFIG.BULB_DEFLATE_RATE*dt,0,1);
+    bulbRecoveryThisFrame=Math.max(0,beforeRecovery-state.bulbDeflation);
     if(state.bulbDeflation<=1e-6) {
       state.bulbDeflation=0;
-      state.needsAAfterBulbRecovered=true;
+      bulbRecoveredThisFrame=true;
     }
   }
 
@@ -1329,7 +1339,8 @@ function update(dt) {
     const source=which==="A"?state.beakerAVolume:state.beakerBVolume;
     let capacity=CONFIG.MAX_PIPETTE_VOLUME-state.pipetteVolume;
     if(!state.firstMoveUnlocked)capacity=Math.min(capacity,Math.max(0,25.0-state.pipetteVolume));
-    const dv=Math.max(0,Math.min(CONFIG.SUCK_RATE*dt,capacity,source));
+    const requested=bulbRecoveryThisFrame*CONFIG.SUCTION_PER_FULL_BULB;
+    const dv=Math.max(0,Math.min(requested,capacity,source));
     if(dv>0) {
       state.pipetteVolume+=dv;
       if(which==="A")state.beakerAVolume-=dv;else state.beakerBVolume-=dv;
@@ -1342,8 +1353,11 @@ function update(dt) {
       }
     }
   }
+  /* 先計入吸球最後一小段回彈所吸入的液體，再鎖定 S，確保完整回彈總量為 40 mL。 */
+  if(bulbRecoveredThisFrame) state.needsAAfterBulbRecovered=true;
+
   if(state.activeAction==="E"&&state.isEPressed&&canEmpty()) {
-    const tip=tipWorld(),which=targetBeakerAtX(tip.x);
+    const which=state.currentBeaker;
     const dv=Math.min(CONFIG.EMPTY_RATE*dt,state.pipetteVolume);
     if(dv>0) {
       state.pipetteVolume=Math.max(0,state.pipetteVolume-dv);
@@ -1389,11 +1403,12 @@ function render() {
 }
 
 function frame(now) {
-  let dt=(now-lastTime)/1000;
+  const rawDt=Math.max(0,(now-lastTime)/1000);
   lastTime=now;
-  dt=clamp(dt,0,0.05);
+  const dt=clamp(rawDt,0,0.05);
+  const moveDt=clamp(rawDt,0,2.0);
 
-  update(dt);
+  update(dt,moveDt);
   render();
   requestAnimationFrame(frame);
 }
