@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>吸量管＋安全吸球＋燒杯｜操作模擬</title>
+<title>雙燒杯吸量管＋安全吸球｜操作模擬</title>
 <style>
   :root{
     --bg:#f4f8fb;
@@ -78,13 +78,8 @@
     position:relative;
   }
   canvas{
-    display:block;
-    width:100%;
-    height:100%;
-    max-width:100%;
-    max-height:100%;
-    /* 允許手機雙指縮放頁面；按鈕操作仍由 Pointer Events 處理 */
-    touch-action: manipulation;
+    display:block;width:100%;height:100%;max-width:100%;max-height:100%;
+    touch-action:pan-x pan-y pinch-zoom;
   }
   .controls{
     width:min(92%,460px);
@@ -159,16 +154,11 @@
     padding:14px;
     overflow:hidden;
   }
-  .volume-value{
-    font-size:clamp(48px,7vw,88px);
-    line-height:1;
-    font-weight:800;
-    letter-spacing:.02em;
-    text-align:center;
-    color:#176a89;
-    white-space:nowrap;
-  }
-  .volume-value.warn{color:var(--danger)}
+  .volume-list{width:min(94%,560px);display:flex;flex-direction:column;gap:16px}
+  .volume-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border:1px solid #d6e5ed;border-radius:12px;background:#f8fcfe}
+  .volume-row span{font-size:clamp(16px,2vw,22px);font-weight:700;color:#31556a}
+  .volume-row strong{font-size:clamp(24px,4vw,42px);line-height:1;font-weight:800;color:#176a89;white-space:nowrap}
+  .volume-row strong.warn{color:var(--danger)}
   .warning{
     width:min(90%,560px);
     min-height:54px;
@@ -234,7 +224,7 @@
 <div class="app">
   <main class="grid">
     <section class="panel" id="panel1">
-      <h2>裝置 / 吸量管＋安全吸球＋燒杯</h2>
+      <h2>裝置操作區</h2>
       <div class="stage">
         <canvas id="mainCanvas" aria-label="吸量管、安全吸球與燒杯主視圖"></canvas>
       </div>
@@ -265,11 +255,15 @@
     </section>
 
     <section class="panel" id="panel4">
-      <h2>吸量管內液體體積</h2>
+      <h2>溶液體積</h2>
       <div class="volume-wrap">
-        <div id="volumeValue" class="volume-value">0.0 mL</div>
-        <div id="warning" class="warning hidden">⚠ 液面已超過 0 mL 刻度！</div>
-        <div class="legend">吸量管容量：25 mL</div>
+        <div class="volume-list">
+          <div class="volume-row"><span>分度吸量管</span><strong id="volumeValue">0.0 mL</strong></div>
+          <div class="volume-row"><span>燒杯 A</span><strong id="beakerAValue">100.0 mL</strong></div>
+          <div class="volume-row"><span>燒杯 B</span><strong id="beakerBValue">0.0 mL</strong></div>
+        </div>
+        <div id="warning" class="warning hidden">⚠ 分度吸量管液面已超過 0 mL 刻度！</div>
+        <div class="legend">分度吸量管的容量為25 mL；超過刻度0 mL時，禁止移動操作。</div>
       </div>
     </section>
   </main>
@@ -283,21 +277,17 @@
    核心狀態
    ========================================================= */
 const state = {
-  bulbDeflation: 0.0,
-  pipetteVolume: 0.0,
-  beakerVolume: 100.0,
-  isAPressed: false,
-  isSPressed: false,
-  isEPressed: false,
-
-  /* S/E 同時按下時，以先按下者為優先 */
-  activeAction: null,
-  actionOrder: 0,
-  pressedOrder: {A:0,S:0,E:0},
-
-  /* 平滑顯示用值；真實狀態仍以核心狀態為準 */
-  displayVolume: 0.0,
-  displayBulbDeflation: 0.0
+  bulbDeflation: 0.0, pipetteVolume: 0.0,
+  beakerAVolume: 100.0, beakerBVolume: 0.0,
+  isAPressed:false,isSPressed:false,isEPressed:false,
+  activeAction:null,actionOrder:0,pressedOrder:{A:0,S:0,E:0},
+  displayVolume:0.0,displayBulbDeflation:0.0,
+  displayAVolume:100.0,displayBVolume:0.0,
+  firstMoveUnlocked:false,
+  needsAAfterBulbRecovered:false,
+  deviceX:-160,deviceY:340,moving:false,
+  moveToX:-160,moveToY:340,movePhase:"idle",moveTargetBeaker:null,
+  moveLiftY:55,dragCandidate:null,longPressTimer:null,dragStarted:false
 };
 
 /* =========================================================
@@ -312,6 +302,14 @@ const CONFIG = {
   WARNING_ON: 25.5,
   WARNING_OFF: 25.0,
   BEAKER_INITIAL: 100.0,
+  LONG_PRESS_MS: 500,
+  INSERT_DEPTH: 150,
+  MOVE_SPEED: 4.0,             // 移動各階段的漸近速度加倍，縮短端點減速／懸停感，約為原本所需時間的一半
+  WORLD_W: 1600,
+  WORLD_H: 1980,
+  BEAKER_A_X: -160,
+  BEAKER_B_X: 680,
+  BEAKER_Y: 385,
   BULB_SMOOTH: 12.0,
   VOLUME_SMOOTH: 14.0
 };
@@ -324,6 +322,8 @@ const bulbCanvas = document.getElementById("bulbCanvas");
 const mainCtx = mainCanvas.getContext("2d");
 const bulbCtx = bulbCanvas.getContext("2d");
 const volumeEl = document.getElementById("volumeValue");
+const beakerAEl = document.getElementById("beakerAValue");
+const beakerBEl = document.getElementById("beakerBValue");
 const warningEl = document.getElementById("warning");
 const actionButtons = [...document.querySelectorAll(".op-btn")];
 
@@ -435,24 +435,26 @@ function drawBeaker(ctx, x, y, scale, s) {
     100 mL 液面：與上一階段 SVG 的 1135 座標對齊。
     0 mL → 1450；100 mL → 1135。
   */
-  const liquidTop = 1135 + (100 - clamp(s.beakerVolume,0,100)) * 3.15;
+  const liquidTop = 1135 + (100 - clamp(s.beakerVolume,0,100)) * 3.75;
 
   ctx.save();
   ctx.clip(bodyPath);
 
-  const liquid = ctx.createLinearGradient(0,liquidTop,0,1500);
-  liquid.addColorStop(0,"rgba(142,202,230,.72)");
-  liquid.addColorStop(1,"rgba(33,158,188,.28)");
-  ctx.fillStyle = liquid;
-  ctx.fillRect(300,liquidTop,490,950);
+  if (s.beakerVolume > 0.0001) {
+    const liquid = ctx.createLinearGradient(0,liquidTop,0,1500);
+    liquid.addColorStop(0,"rgba(142,202,230,.72)");
+    liquid.addColorStop(1,"rgba(33,158,188,.28)");
+    ctx.fillStyle = liquid;
+    ctx.fillRect(300,liquidTop,490,950);
 
-  /* 下彎彎月面，最低點對應液面 */
-  ctx.beginPath();
-  ctx.moveTo(327,liquidTop);
-  ctx.quadraticCurveTo(542,liquidTop+19,758,liquidTop);
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = "#279fe3";
-  ctx.stroke();
+    /* 下彎彎月面，最低點對應液面；空杯不畫液面 */
+    ctx.beginPath();
+    ctx.moveTo(327,liquidTop);
+    ctx.quadraticCurveTo(542,liquidTop+19,758,liquidTop);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#279fe3";
+    ctx.stroke();
+  }
   ctx.restore();
 
   /* 杯緣 */
@@ -825,24 +827,21 @@ function drawBulb(ctx, x, y, scale, s) {
    主視圖
    ========================================================= */
 function drawMain() {
-  const rect = mainCanvas.getBoundingClientRect();
-  const w = Math.max(1,rect.width);
-  const h = Math.max(1,rect.height);
-  const dpr = Math.min(window.devicePixelRatio || 1,2);
-
-  mainCanvas.width = Math.round(w*dpr);
-  mainCanvas.height = Math.round(h*dpr);
-  mainCtx.setTransform(dpr,0,0,dpr,0,0);
-  mainCtx.clearRect(0,0,w,h);
-
-  /* 保留上一階段 SVG 1024×1536 比例，置中且不超出區域 */
-  const scale = Math.min(w/1024,h/1536);
-  const ox = (w-1024*scale)/2;
-  const oy = (h-1536*scale)/2;
-
-  drawBeaker(mainCtx,ox,oy,scale,state);
-  drawPipette(mainCtx,ox,oy,scale,state);
-  drawBulb(mainCtx,ox,oy,scale,state);
+  const rect=mainCanvas.getBoundingClientRect(), w=Math.max(1,rect.width), h=Math.max(1,rect.height);
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  mainCanvas.width=Math.round(w*dpr); mainCanvas.height=Math.round(h*dpr);
+  mainCtx.setTransform(dpr,0,0,dpr,0,0); mainCtx.clearRect(0,0,w,h);
+  const scale=Math.min(w/CONFIG.WORLD_W,h/CONFIG.WORLD_H);
+  const ox=(w-CONFIG.WORLD_W*scale)/2, oy=(h-CONFIG.WORLD_H*scale)/2;
+  mainCtx.save(); mainCtx.translate(ox,oy); mainCtx.scale(scale,scale);
+  drawBeaker(mainCtx,CONFIG.BEAKER_A_X,CONFIG.BEAKER_Y,1,{...state,beakerVolume:state.displayAVolume});
+  drawBeaker(mainCtx,CONFIG.BEAKER_B_X,CONFIG.BEAKER_Y,1,{...state,beakerVolume:state.displayBVolume});
+  /* 只在各燒杯左下角標示 A / B，不顯示「燒杯 A／燒杯 B」文字 */
+  drawTextCentered(mainCtx,"A",CONFIG.BEAKER_A_X+275,CONFIG.BEAKER_Y+1475,34,"#17435c","700");
+  drawTextCentered(mainCtx,"B",CONFIG.BEAKER_B_X+275,CONFIG.BEAKER_Y+1475,34,"#17435c","700");
+  mainCtx.save(); mainCtx.translate(state.deviceX,state.deviceY);
+  drawPipette(mainCtx,0,0,1,state); drawBulb(mainCtx,0,0,1,state);
+  mainCtx.restore(); mainCtx.restore();
 }
 
 /* =========================================================
@@ -877,9 +876,10 @@ function drawBulbStage() {
    體積顯示
    ========================================================= */
 function updateReadout() {
-  volumeEl.textContent = `${state.displayVolume.toFixed(1)} mL`;
-
-  const over = state.pipetteVolume > CONFIG.WARNING_ON;
+  volumeEl.textContent=`${state.displayVolume.toFixed(1)} mL`;
+  beakerAEl.textContent=`${state.displayAVolume.toFixed(1)} mL`;
+  beakerBEl.textContent=`${state.displayBVolume.toFixed(1)} mL`;
+  const over=state.pipetteVolume>CONFIG.WARNING_OFF+1e-6;
   volumeEl.classList.toggle("warn",over);
   warningEl.classList.toggle("hidden",!over);
 }
@@ -904,6 +904,17 @@ function updateButtons() {
    ========================================================= */
 function pressAction(action) {
   if (!["A","S","E"].includes(action)) return;
+  /* S 在任何位置都可讓吸球回彈；是否真的吸到液體由 update/canSuck 判定。 */
+  if(action==="E" && !canEmpty()) return;
+  if(action==="S" && state.needsAAfterBulbRecovered) {
+    /* 球體已恢復原形後，必須先按 A 重新壓扁，S 才能再次吸液。 */
+    state.isSPressed = true;
+    state.actionOrder += 1;
+    state.pressedOrder.S = state.actionOrder;
+    state.activeAction = "S";
+    updateButtons();
+    return;
+  }
 
   const already =
     action==="A" ? state.isAPressed :
@@ -915,7 +926,10 @@ function pressAction(action) {
   state.actionOrder += 1;
   state.pressedOrder[action] = state.actionOrder;
 
-  if (action==="A") state.isAPressed = true;
+  if (action==="A") {
+    state.isAPressed = true;
+    state.needsAAfterBulbRecovered = false;
+  }
   if (action==="S") state.isSPressed = true;
   if (action==="E") state.isEPressed = true;
 
@@ -1042,18 +1056,16 @@ document.addEventListener("selectionchange", ()=>{
 /* =========================================================
    主視圖 / 放大圖中的 A/S/E 圓形按鈕熱區
    ========================================================= */
-function hitBadgeOnMain(canvas, ev) {
-  const r=canvas.getBoundingClientRect();
-  const cssW=r.width, cssH=r.height;
-  const scale=Math.min(cssW/1024,cssH/1536);
-  const ox=(cssW-1024*scale)/2;
-  const oy=(cssH-1536*scale)/2;
-  const X=(ev.clientX-r.left-ox)/scale;
-  const Y=(ev.clientY-r.top-oy)/scale;
-
-  if ((X-540)**2+(Y-70)**2 <= 35**2) return "A";
-  if ((X-540)**2+(Y-390)**2 <= 33**2) return "S";
-  if ((X-445)**2+(Y-407)**2 <= 31**2) return "E";
+function mainWorldPoint(ev) {
+  const r=mainCanvas.getBoundingClientRect(), scale=Math.min(r.width/CONFIG.WORLD_W,r.height/CONFIG.WORLD_H);
+  const ox=(r.width-CONFIG.WORLD_W*scale)/2, oy=(r.height-CONFIG.WORLD_H*scale)/2;
+  return {x:(ev.clientX-r.left-ox)/scale,y:(ev.clientY-r.top-oy)/scale};
+}
+function hitBadgeOnMain(canvas,ev) {
+  const p=mainWorldPoint(ev), X=p.x-state.deviceX, Y=p.y-state.deviceY;
+  if((X-540)**2+(Y-70)**2<=35**2)return "A";
+  if((X-540)**2+(Y-390)**2<=33**2)return "S";
+  if((X-445)**2+(Y-407)**2<=31**2)return "E";
   return null;
 }
 
@@ -1112,6 +1124,141 @@ bindCanvasBadge(mainCanvas,hitBadgeOnMain);
 bindCanvasBadge(bulbCanvas,hitBadgeOnBulb);
 
 /* =========================================================
+   雙燒杯定位、長按拖曳與液面判定
+   ========================================================= */
+function beakerSurfaceY(which) {
+  const vol=which==="A"?state.beakerAVolume:state.beakerBVolume;
+  return CONFIG.BEAKER_Y+1135+(100-clamp(vol,0,100))*3.75;
+}
+function beakerBottomY(){return CONFIG.BEAKER_Y+1500;}
+function tipWorld(){return {x:540+state.deviceX,y:1330+state.deviceY};}
+function targetBeakerAtX(x) {
+  if(x>=CONFIG.BEAKER_A_X+337 && x<=CONFIG.BEAKER_A_X+748)return "A";
+  if(x>=CONFIG.BEAKER_B_X+337 && x<=CONFIG.BEAKER_B_X+748)return "B";
+  return null;
+}
+function canSuck() {
+  if(state.moving)return false;
+  const tip=tipWorld(),which=targetBeakerAtX(tip.x);
+  if(!which)return false;
+  const vol=which==="A"?state.beakerAVolume:state.beakerBVolume;
+  return vol>1e-6 && tip.y >= beakerSurfaceY(which)+0.5 && tip.y < beakerBottomY()-8;
+}
+function canEmpty() {
+  if(state.moving || state.pipetteVolume<=1e-6)return false;
+  return !!targetBeakerAtX(tipWorld().x);
+}
+function updateActionAvailability() {
+  /* 移動時只鎖 E；S 仍可按住讓吸球回彈，但不會吸液。 */
+  if(state.moving && state.isEPressed) {
+    state.isEPressed=false;
+    if(state.activeAction==="E")state.activeAction=null;
+  }
+  if(state.isEPressed && !canEmpty()) {
+    state.isEPressed=false;
+    if(state.activeAction==="E")state.activeAction=null;
+  }
+}
+function isMoveVolumeAllowed() {
+  /* 以實際體積門檻 25.3 mL 判定，並保留微小浮點容差。 */
+  return Math.round((state.pipetteVolume + 1e-8) * 10) / 10 <= 25.3;
+}
+function startDeviceMove(target) {
+  if(state.moving||!target||!state.firstMoveUnlocked||!isMoveVolumeAllowed())return false;
+  state.moving=true;state.moveTargetBeaker=target;
+  state.moveToX=target==="A"?CONFIG.BEAKER_A_X:CONFIG.BEAKER_B_X;
+  const targetTipY=Math.min(
+    beakerSurfaceY(target)+CONFIG.INSERT_DEPTH,
+    beakerBottomY()-15
+  );
+  state.moveToY=targetTipY-1330;
+  state.moveLiftY=CONFIG.BEAKER_Y+950-1330;
+  state.movePhase="lift";
+  state.isSPressed=false;state.isEPressed=false;state.activeAction=null;
+  return true;
+}
+function advanceMove(dt) {
+  if(!state.moving)return;
+  const k=1-Math.exp(-CONFIG.MOVE_SPEED*dt);
+  if(state.movePhase==="lift") {
+    state.deviceY=lerp(state.deviceY,state.moveLiftY,k);
+    if(Math.abs(state.deviceY-state.moveLiftY)<1.2){state.deviceY=state.moveLiftY;state.movePhase="horizontal";}
+  } else if(state.movePhase==="horizontal") {
+    state.deviceX=lerp(state.deviceX,state.moveToX,k);
+    if(Math.abs(state.deviceX-state.moveToX)<1.2){state.deviceX=state.moveToX;state.movePhase="lower";}
+  } else if(state.movePhase==="lower") {
+    const targetTipY=Math.min(
+      beakerSurfaceY(state.moveTargetBeaker)+CONFIG.INSERT_DEPTH,
+      beakerBottomY()-15
+    );
+    const finalY=targetTipY-1330;
+    state.deviceY=lerp(state.deviceY,finalY,k);
+    if(Math.abs(state.deviceY-finalY)<1.2){
+      state.deviceY=finalY;state.currentBeaker=state.moveTargetBeaker;
+      state.moveTargetBeaker=null;state.movePhase="idle";state.moving=false;
+    }
+  }
+}
+function isOnMovableApparatus(lx,ly) {
+  /* 僅接受實際球體與玻璃吸量管管身；不把旁邊的 A/S/E 操作區、側支管、標示或空白區算成移動熱區。 */
+  const sx=lerp(1,Math.SQRT1_2,clamp(state.displayBulbDeflation,0,1));
+  const bulbXRadius=125*sx+8; // 依球體壓縮狀態調整，另留少量觸控容差
+  const bulbYRadius=128+8;
+  const onBulb=((lx-540)**2)/(bulbXRadius**2)+((ly-218)**2)/(bulbYRadius**2)<=1;
+
+  /* 吸量管本體實際約 x=500～580；縮小舊版過寬的熱區。 */
+  const onPipette=lx>=494&&lx<=586&&ly>=460&&ly<=1340;
+
+  /* 即使碰到操作按鈕邊緣，也不能被誤判成器材移動長按。 */
+  const nearActionBadge=
+    (lx-540)**2+(ly-70)**2<=50**2 ||
+    (lx-540)**2+(ly-390)**2<=48**2 ||
+    (lx-445)**2+(ly-407)**2<=46**2;
+
+  return !nearActionBadge && (onBulb||onPipette);
+}
+
+function beginLongPressDrag(ev) {
+  if(state.moving||!state.firstMoveUnlocked||!isMoveVolumeAllowed())return;
+  const p=mainWorldPoint(ev),lx=p.x-state.deviceX,ly=p.y-state.deviceY;
+  if(!isOnMovableApparatus(lx,ly))return;
+  state.dragCandidate={pointerId:ev.pointerId,startX:p.x,startY:p.y};
+  state.dragStarted=false;
+  state.longPressTimer=setTimeout(()=>{
+    if(!state.dragCandidate||state.dragCandidate.pointerId!==ev.pointerId)return;
+    state.dragStarted=true;
+    const tip=tipWorld(),here=targetBeakerAtX(tip.x);
+    const target=here==="A"?"B":here==="B"?"A":(state.currentBeaker==="A"?"B":"A");
+    startDeviceMove(target);
+  },CONFIG.LONG_PRESS_MS);
+}
+mainCanvas.addEventListener("pointerdown",ev=>{
+  if(hitBadgeOnMain(mainCanvas,ev))return;
+  /* 觸控時保留瀏覽器原生雙指縮放；滑鼠／觸控筆仍阻止預設行為。
+     不對觸控指標強制 pointer capture，避免干擾 Safari 的多指手勢辨識。 */
+  if(ev.pointerType !== "touch") ev.preventDefault();
+  if(ev.pointerType !== "touch" && mainCanvas.setPointerCapture && ev.pointerId!=null){
+    try{mainCanvas.setPointerCapture(ev.pointerId)}catch(e){}
+  }
+  beginLongPressDrag(ev);
+},{passive:false});
+mainCanvas.addEventListener("pointermove",ev=>{
+  if(!state.dragCandidate||state.dragCandidate.pointerId!==ev.pointerId||state.dragStarted)return;
+  const p=mainWorldPoint(ev);
+  if(Math.hypot(p.x-state.dragCandidate.startX,p.y-state.dragCandidate.startY)>12){
+    clearTimeout(state.longPressTimer);state.longPressTimer=null;state.dragCandidate=null;
+  }
+},{passive:false});
+function endDevicePress(ev){
+  if(state.dragCandidate&&state.dragCandidate.pointerId===ev.pointerId){
+    clearTimeout(state.longPressTimer);state.longPressTimer=null;state.dragCandidate=null;
+  }
+}
+mainCanvas.addEventListener("pointerup",endDevicePress,{passive:false});
+mainCanvas.addEventListener("pointercancel",endDevicePress,{passive:false});
+mainCanvas.addEventListener("contextmenu",ev=>ev.preventDefault());
+
+/* =========================================================
    鍵盤 A / S / E
    ========================================================= */
 window.addEventListener("keydown",(ev)=>{
@@ -1139,61 +1286,78 @@ window.addEventListener("blur",()=>{
 let lastTime = performance.now();
 
 function update(dt) {
-  /* A：壓扁吸球，期間體積不變 */
-  if (state.isAPressed && !state.isSPressed) {
-    state.bulbDeflation += CONFIG.BULB_DEFLATE_RATE * dt;
-    state.bulbDeflation = clamp(state.bulbDeflation,0,1);
+  advanceMove(dt);
+  updateActionAvailability();
+
+  if(state.isAPressed && !state.moving) {
+    state.bulbDeflation=clamp(state.bulbDeflation+CONFIG.BULB_DEFLATE_RATE*dt,0,1);
+    if(state.bulbDeflation>1e-6) state.needsAAfterBulbRecovered=false;
   }
 
-  /* S：吸液；S/E 同時按住時依先按下者優先 */
-  if (state.activeAction==="S" && state.isSPressed) {
-    if (state.bulbDeflation > 0) {
-      const oldVolume=state.pipetteVolume;
-      const dv=Math.min(
-        CONFIG.SUCK_RATE*dt,
-        CONFIG.MAX_PIPETTE_VOLUME-oldVolume
-      );
-
-      state.pipetteVolume += Math.max(0,dv);
-
-      /* 吸球壓縮量與吸液量獨立於 25 mL 刻度：
-         完全壓縮一次的吸液能力設定為 40 mL。
-         因此吸到 25 mL 時，吸球仍可能保持部分壓縮；
-         若只壓縮一半，則可能需要再次按 A 才能繼續吸。 */
-      state.bulbDeflation -= Math.max(0,dv)/CONFIG.SUCTION_PER_FULL_BULB;
-      state.bulbDeflation=clamp(state.bulbDeflation,0,1);
+  /* 按住 S 時吸球始終回彈；只有尖端浸在有液體的燒杯內才同步吸液。 */
+  if(state.isSPressed) {
+    state.bulbDeflation=clamp(state.bulbDeflation-CONFIG.BULB_DEFLATE_RATE*dt,0,1);
+    if(state.bulbDeflation<=1e-6) {
+      state.bulbDeflation=0;
+      state.needsAAfterBulbRecovered=true;
     }
   }
 
-  /* E：排液；吸球狀態完全不變 */
-  if (state.activeAction==="E" && state.isEPressed) {
-    if (state.pipetteVolume>0) {
-      const dv=Math.min(CONFIG.EMPTY_RATE*dt,state.pipetteVolume);
-      state.pipetteVolume = Math.max(0,state.pipetteVolume - Math.max(0,dv));
-      if(state.pipetteVolume<0.000001)state.pipetteVolume=0;
+  if(state.activeAction==="S"&&state.isSPressed&&!state.needsAAfterBulbRecovered&&canSuck()) {
+    const tip=tipWorld(),which=targetBeakerAtX(tip.x);
+    const source=which==="A"?state.beakerAVolume:state.beakerBVolume;
+    let capacity=CONFIG.MAX_PIPETTE_VOLUME-state.pipetteVolume;
+    if(!state.firstMoveUnlocked)capacity=Math.min(capacity,Math.max(0,25.0-state.pipetteVolume));
+    const dv=Math.max(0,Math.min(CONFIG.SUCK_RATE*dt,capacity,source));
+    if(dv>0) {
+      state.pipetteVolume+=dv;
+      if(which==="A")state.beakerAVolume-=dv;else state.beakerBVolume-=dv;
+      if(!state.firstMoveUnlocked && state.pipetteVolume >= 24.999) {
+        state.pipetteVolume=25.0;
+        state.firstMoveUnlocked=true;
+        /* 首次達標即精確停在 25.0 mL，不因浮點誤差被判定超量。 */
+        state.isSPressed=false;
+        if(state.activeAction==="S")state.activeAction=null;
+      }
     }
   }
-
-  /*
-    液體守恆。
-    pipetteVolume = 0 時，beakerVolume 一定回到 100。
-    ⚠ 待確認：若將最大吸量設定到超過 100 mL，這個簡化模型會得到
-    負的燒杯體積；目前 MAX_PIPETTE_VOLUME=35，因此不會發生。
-  */
-  state.beakerVolume=clamp(100-state.pipetteVolume,0,100);
-
-  /* 平滑動畫 */
-  state.displayVolume=easeToward(
-    state.displayVolume,state.pipetteVolume,CONFIG.VOLUME_SMOOTH,dt
-  );
-  state.displayBulbDeflation=easeToward(
-    state.displayBulbDeflation,state.bulbDeflation,CONFIG.BULB_SMOOTH,dt
-  );
-
-  if(Math.abs(state.displayVolume-state.pipetteVolume)<0.0001)
-    state.displayVolume=state.pipetteVolume;
-  if(Math.abs(state.displayBulbDeflation-state.bulbDeflation)<0.0001)
-    state.displayBulbDeflation=state.bulbDeflation;
+  if(state.activeAction==="E"&&state.isEPressed&&canEmpty()) {
+    const tip=tipWorld(),which=targetBeakerAtX(tip.x);
+    const dv=Math.min(CONFIG.EMPTY_RATE*dt,state.pipetteVolume);
+    if(dv>0) {
+      state.pipetteVolume=Math.max(0,state.pipetteVolume-dv);
+      /* 體積顯示至 0.1 mL；回到顯示 25.0 mL 時，消除微小浮點殘差。 */
+      if(Math.round((state.pipetteVolume+1e-8)*10)/10===25.0 && state.pipetteVolume<=25.05) {
+        const residual=state.pipetteVolume-25.0;
+        state.pipetteVolume=25.0;
+        if(which==="A")state.beakerAVolume+=residual;
+        else state.beakerBVolume+=residual;
+      }
+      if(which==="A")state.beakerAVolume=Math.min(100,state.beakerAVolume+dv);
+      else state.beakerBVolume=Math.min(100,state.beakerBVolume+dv);
+    }
+  }
+  if(state.pipetteVolume<1e-7)state.pipetteVolume=0;
+  if(state.beakerAVolume<1e-7)state.beakerAVolume=0;
+  if(state.beakerBVolume<1e-7)state.beakerBVolume=0;
+  const total=state.pipetteVolume+state.beakerAVolume+state.beakerBVolume;
+  if(Math.abs(total-100)>1e-5) {
+    const correction=100-total;
+    const target=targetBeakerAtX(tipWorld().x);
+    if(target==="A")state.beakerAVolume=Math.max(0,state.beakerAVolume+correction);
+    else if(target==="B")state.beakerBVolume=Math.max(0,state.beakerBVolume+correction);
+  }
+  if(!isMoveVolumeAllowed()&&state.dragCandidate){
+    clearTimeout(state.longPressTimer);state.longPressTimer=null;state.dragCandidate=null;
+  }
+  state.displayVolume=easeToward(state.displayVolume,state.pipetteVolume,CONFIG.VOLUME_SMOOTH,dt);
+  state.displayAVolume=easeToward(state.displayAVolume,state.beakerAVolume,CONFIG.VOLUME_SMOOTH,dt);
+  state.displayBVolume=easeToward(state.displayBVolume,state.beakerBVolume,CONFIG.VOLUME_SMOOTH,dt);
+  state.displayBulbDeflation=easeToward(state.displayBulbDeflation,state.bulbDeflation,CONFIG.BULB_SMOOTH,dt);
+  if(Math.abs(state.displayVolume-state.pipetteVolume)<.0001)state.displayVolume=state.pipetteVolume;
+  if(Math.abs(state.displayAVolume-state.beakerAVolume)<.0001)state.displayAVolume=state.beakerAVolume;
+  if(Math.abs(state.displayBVolume-state.beakerBVolume)<.0001)state.displayBVolume=state.beakerBVolume;
+  if(Math.abs(state.displayBulbDeflation-state.bulbDeflation)<.0001)state.displayBulbDeflation=state.bulbDeflation;
 }
 
 function render() {
