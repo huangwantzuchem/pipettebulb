@@ -293,7 +293,7 @@
 
 <script>
 "use strict";
-/* v17：修正內嵌瀏覽器移動鎖定；完整吸球回彈對應 40 mL，總吸液上限 40 mL。 */
+/* v19：修正內嵌瀏覽器移動鎖定；完整吸球回彈對應 40 mL，總吸液上限 40 mL。 */
 
 /* =========================================================
    核心狀態
@@ -927,71 +927,43 @@ function updateButtons() {
    ========================================================= */
 function pressAction(action) {
   if (!["A","S","E"].includes(action)) return;
-  /* S 在任何位置都可讓吸球回彈；是否真的吸到液體由 update/canSuck 判定。 */
-  if(action==="E" && !canEmpty()) return;
-  if(action==="S" && state.needsAAfterBulbRecovered) {
-    /* 球體已恢復原形後，必須先按 A 重新壓扁，S 才能再次吸液。 */
-    state.isSPressed = true;
-    state.actionOrder += 1;
-    state.pressedOrder.S = state.actionOrder;
-    state.activeAction = "S";
-    updateButtons();
-    return;
-  }
+  /* 移動中禁止開始 E，避免移動完成後意外排液。 */
+  if(action==="E" && state.moving) return;
 
   const already =
     action==="A" ? state.isAPressed :
     action==="S" ? state.isSPressed :
     state.isEPressed;
-
-  if (already) return;
+  if(already) return;
 
   state.actionOrder += 1;
   state.pressedOrder[action] = state.actionOrder;
 
-  if (action==="A") {
-    state.isAPressed = true;
-    state.needsAAfterBulbRecovered = false;
+  if(action==="A") {
+    /* A 與 S/E 互斥，避免同時壓縮與回彈吸球。 */
+    state.isSPressed=false;
+    state.isEPressed=false;
+    state.isAPressed=true;
+    state.needsAAfterBulbRecovered=false;
+    state.activeAction="A";
+  } else {
+    /* S/E 操作開始時停止 A；S 與 E 可同時保持按住並依有效性接手。 */
+    state.isAPressed=false;
+    if(action==="S") state.isSPressed=true;
+    if(action==="E") state.isEPressed=true;
+    updateActionAvailability();
   }
-  if (action==="S") state.isSPressed = true;
-  if (action==="E") state.isEPressed = true;
-
-  if (action==="S" || action==="E") {
-    const other = action==="S" ? "E" : "S";
-    const otherPressed = other==="S" ? state.isSPressed : state.isEPressed;
-
-    if (otherPressed) {
-      state.activeAction =
-        state.pressedOrder[action] < state.pressedOrder[other]
-        ? action : other;
-    } else {
-      state.activeAction = action;
-    }
-  }
-
   updateButtons();
 }
 
 function releaseAction(action) {
   if (!["A","S","E"].includes(action)) return;
 
-  if (action==="A") state.isAPressed = false;
-  if (action==="S") state.isSPressed = false;
-  if (action==="E") state.isEPressed = false;
+  if(action==="A") state.isAPressed=false;
+  if(action==="S") state.isSPressed=false;
+  if(action==="E") state.isEPressed=false;
 
-  if (action==="S" || action==="E") {
-    const candidates = [];
-    if (state.isSPressed) candidates.push("S");
-    if (state.isEPressed) candidates.push("E");
-
-    if (candidates.length===0) {
-      state.activeAction = null;
-    } else {
-      candidates.sort((a,b)=>state.pressedOrder[a]-state.pressedOrder[b]);
-      state.activeAction = candidates[0];
-    }
-  }
-
+  updateActionAvailability();
   updateButtons();
 }
 
@@ -1173,16 +1145,22 @@ function canEmpty() {
   if(state.moving || state.pipetteVolume<=1e-6)return false;
   return state.currentBeaker==="A" || state.currentBeaker==="B";
 }
+function actionIsEligible(action) {
+  if(action==="A") return state.isAPressed && !state.moving;
+  if(action==="S") {
+    /* S 可在移動時讓吸球回彈，但必須有可回彈的壓縮量，且未被 A 重新壓縮。 */
+    return state.isSPressed && !state.needsAAfterBulbRecovered && state.bulbDeflation > 1e-6;
+  }
+  if(action==="E") return state.isEPressed && canEmpty();
+  return false;
+}
 function updateActionAvailability() {
-  /* 移動時只鎖 E；S 仍可按住讓吸球回彈，但不會吸液。 */
-  if(state.moving && state.isEPressed) {
-    state.isEPressed=false;
-    if(state.activeAction==="E")state.activeAction=null;
-  }
-  if(state.isEPressed && !canEmpty()) {
-    state.isEPressed=false;
-    if(state.activeAction==="E")state.activeAction=null;
-  }
+  /* 保留實際按住狀態；只重新選擇目前有效的操作。
+     先按優先，當原操作失效時，交由仍按住且有效的操作接手。 */
+  if(state.activeAction && actionIsEligible(state.activeAction)) return;
+  const candidates=["A","S","E"].filter(actionIsEligible);
+  candidates.sort((a,b)=>(state.pressedOrder[a]||0)-(state.pressedOrder[b]||0));
+  state.activeAction=candidates.length ? candidates[0] : null;
 }
 function isMoveVolumeAllowed() {
   /* 以實際體積門檻 25.3 mL 判定，並保留微小浮點容差。 */
@@ -1199,7 +1177,8 @@ function startDeviceMove(target) {
   state.moveToY=targetTipY-1330;
   state.moveLiftY=CONFIG.BEAKER_Y+950-1330;
   state.movePhase="lift";
-  state.isSPressed=false;state.isEPressed=false;state.activeAction=null;
+  state.isAPressed=false;state.isSPressed=false;state.isEPressed=false;state.activeAction=null;
+  updateButtons();
   return true;
 }
 function advanceMove(dt) {
@@ -1311,22 +1290,24 @@ window.addEventListener("blur",()=>{
 let lastTime = performance.now();
 
 function update(dt, moveDt=dt) {
-  /* 移動動畫使用未被一般物理步進限速的時間差；內嵌瀏覽器降低 rAF 頻率時，
-     不會因 dt 被限制在 0.05 秒而讓 state.moving 長時間保持 true。 */
+  /* 移動動畫與 A/S 吸球操作使用較接近真實經過時間的步進。
+     一般 dt 仍限制在 0.05 秒供其他物理更新使用；若內嵌瀏覽器降低 rAF 頻率，
+     A/S 不應因此少算吸球壓縮／回彈量，否則完整回彈可能只吸入約 15 mL。 */
+  const actionDt=moveDt;
   advanceMove(moveDt);
   updateActionAvailability();
 
-  if(state.isAPressed && !state.moving) {
-    state.bulbDeflation=clamp(state.bulbDeflation+CONFIG.BULB_DEFLATE_RATE*dt,0,1);
+  if(state.activeAction==="A" && state.isAPressed && !state.moving) {
+    state.bulbDeflation=clamp(state.bulbDeflation+CONFIG.BULB_DEFLATE_RATE*actionDt,0,1);
     if(state.bulbDeflation>1e-6) state.needsAAfterBulbRecovered=false;
   }
 
   /* S 使吸球回彈；完整回彈一次的理論吸液量由 SUCTION_PER_FULL_BULB 決定（40 mL）。 */
   let bulbRecoveryThisFrame=0;
   let bulbRecoveredThisFrame=false;
-  if(state.isSPressed) {
+  if(state.activeAction==="S" && state.isSPressed) {
     const beforeRecovery=state.bulbDeflation;
-    state.bulbDeflation=clamp(state.bulbDeflation-CONFIG.BULB_DEFLATE_RATE*dt,0,1);
+    state.bulbDeflation=clamp(state.bulbDeflation-CONFIG.BULB_DEFLATE_RATE*actionDt,0,1);
     bulbRecoveryThisFrame=Math.max(0,beforeRecovery-state.bulbDeflation);
     if(state.bulbDeflation<=1e-6) {
       state.bulbDeflation=0;
@@ -1358,7 +1339,7 @@ function update(dt, moveDt=dt) {
 
   if(state.activeAction==="E"&&state.isEPressed&&canEmpty()) {
     const which=state.currentBeaker;
-    const dv=Math.min(CONFIG.EMPTY_RATE*dt,state.pipetteVolume);
+    const dv=Math.min(CONFIG.EMPTY_RATE*actionDt,state.pipetteVolume);
     if(dv>0) {
       state.pipetteVolume=Math.max(0,state.pipetteVolume-dv);
       /* 體積顯示至 0.1 mL；回到顯示 25.0 mL 時，消除微小浮點殘差。 */
