@@ -1,0 +1,1415 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>雙燒杯吸量管＋安全吸球｜操作模擬</title>
+<style>
+  :root{
+    --bg:#f4f8fb;
+    --panel:#ffffff;
+    --line:#c9d7e2;
+    --ink:#183247;
+    --muted:#5f7485;
+    --blue:#219ebc;
+    --blue2:#8ecae6;
+    --danger:#e63946;
+    --shadow:0 5px 18px rgba(31,65,87,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+    -webkit-user-select:none !important;
+    user-select:none !important;
+    -webkit-touch-callout:none !important;
+    -webkit-user-drag:none !important;
+  }
+  body{
+    font-family:Arial,"Noto Sans TC","Microsoft JhengHei",sans-serif;
+    overflow-x:hidden;
+  }
+  .app{
+    width:100%;
+    max-width:1500px;
+    margin:0 auto;
+    padding:12px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-rows:minmax(440px,58vh) minmax(300px,42vh);
+    gap:12px;
+    min-height:calc(100vh - 24px);
+  }
+  .panel{
+    min-width:0;
+    min-height:0;
+    overflow:hidden;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+  }
+  .panel h2{
+    flex:0 0 auto;
+    margin:0;
+    padding:13px 16px 9px;
+    text-align:center;
+    font-size:clamp(17px,2vw,22px);
+    line-height:1.2;
+    font-weight:700;
+    color:#17384e;
+    background:rgba(255,255,255,.96);
+    border-bottom:1px solid #e4edf3;
+    z-index:2;
+  }
+  .stage{
+    flex:1 1 auto;
+    min-height:0;
+    min-width:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:8px;
+    overflow:hidden;
+    position:relative;
+  }
+  canvas{
+    display:block;width:100%;height:100%;max-width:100%;max-height:100%;
+    touch-action:pan-x pan-y pinch-zoom;
+  }
+  .controls{
+    width:min(92%,460px);
+    margin:auto;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    justify-content:center;
+    align-items:stretch;
+    min-height:0;
+  }
+  .op-btn{
+    border:1px solid #a9c4d4;
+    border-radius:14px;
+    background:linear-gradient(#fff,#eef7fb);
+    color:#17435c;
+    box-shadow:0 4px 0 #bfd2de,0 7px 15px rgba(41,92,119,.10);
+    padding:14px 18px;
+    min-height:64px;
+    font-size:clamp(16px,2vw,21px);
+    font-weight:700;
+    cursor:pointer;
+    user-select:none;
+    -webkit-user-select:none;
+    -moz-user-select:none;
+    -ms-user-select:none;
+    -webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-user-drag:none;
+    touch-action:none;
+    transition:transform .06s ease,background .08s ease,box-shadow .08s ease;
+  }
+  .op-btn, .op-btn *,
+  .op-btn::before, .op-btn::after{
+    user-select:none !important;
+    -webkit-user-select:none !important;
+    -moz-user-select:none !important;
+    -ms-user-select:none !important;
+    -webkit-touch-callout:none !important;
+  }
+  .op-btn *,
+  .controls,
+  .controls *{
+    user-select:none !important;
+    -webkit-user-select:none !important;
+    -webkit-touch-callout:none !important;
+  }
+  .op-btn .key{
+    display:inline-flex;
+    width:38px;height:38px;
+    align-items:center;justify-content:center;
+    margin-right:9px;
+    border-radius:50%;
+    background:#d9f1fa;
+    color:#09678a;
+    border:1px solid #91c5d9;
+  }
+  .op-btn.pressed{
+    transform:translateY(4px);
+    background:#b9e7f5;
+    box-shadow:0 1px 0 #7daec2,0 3px 8px rgba(41,92,119,.14);
+  }
+  .volume-wrap{
+    width:100%;
+    display:flex;
+    flex:1 1 auto;
+    min-height:0;
+    min-width:0;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:clamp(5px,1.7vh,18px);
+    padding:clamp(5px,1.3vh,14px);
+    overflow:hidden;
+  }
+  .volume-list{width:min(96%,560px);min-width:0;display:flex;flex-direction:column;gap:clamp(4px,1.25vh,16px)}
+  .volume-row{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:clamp(5px,1vw,12px);padding:clamp(5px,1.15vh,12px) clamp(7px,1.25vw,16px);border:1px solid #d6e5ed;border-radius:12px;background:#f8fcfe}
+  .volume-row span{min-width:0;font-size:clamp(12px,1.8vw,22px);font-weight:700;color:#31556a}
+  .volume-row strong{font-size:clamp(18px,3.2vw,42px);line-height:1;font-weight:800;color:#176a89;white-space:nowrap;flex:0 0 auto}
+  .volume-row strong.warn{color:var(--danger)}
+  .warning{
+    width:min(96%,560px);
+    min-height:clamp(30px,5.5vh,54px);
+    display:flex;
+    flex:0 1 auto;
+    align-items:center;
+    justify-content:center;
+    padding:clamp(4px,.8vh,10px) clamp(6px,1vw,14px);
+    border-radius:12px;
+    color:#a20d19;
+    background:#fff0f1;
+    border:1px solid #ef9ba2;
+    font-size:clamp(11px,1.55vw,19px);
+    font-weight:700;
+    text-align:center;
+    line-height:1.25;
+  }
+  .warning.hidden{display:none}
+  .legend{
+    color:var(--muted);
+    text-align:center;
+    font-size:clamp(10px,1.1vw,13px);
+    max-width:620px;
+    width:100%;
+    line-height:1.3;
+    overflow-wrap:anywhere;
+    flex:0 1 auto;
+  }
+  .copyright{
+    width:100%;
+    margin-top:12px;
+    padding:10px 8px 4px;
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.4;
+    flex:0 0 auto;
+  }
+
+  @media (max-width:900px) and (orientation:portrait){
+    .grid{
+      grid-template-columns:1fr;
+      grid-template-rows:minmax(430px,60vh) minmax(360px,52vh) minmax(360px,48vh) minmax(340px,auto);
+      min-height:auto;
+    }
+    .app{padding:8px}
+  }
+  @media (max-width:900px) and (orientation:landscape){
+    .grid{
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      grid-template-rows:minmax(330px,56vh) minmax(270px,auto);
+      min-height:calc(100vh - 16px);
+    }
+    .app{padding:8px}
+    .op-btn{min-height:clamp(42px,7vh,52px);padding:clamp(5px,1vh,9px) clamp(7px,1vw,12px);font-size:clamp(13px,1.7vw,18px)}
+    .op-btn .key{width:clamp(26px,4vh,34px);height:clamp(26px,4vh,34px);margin-right:6px}
+    .controls{gap:clamp(4px,.9vh,8px);width:min(96%,460px)}
+    .panel h2{font-size:clamp(15px,1.8vw,20px);padding:clamp(7px,1vh,11px) 10px}
+    .stage{padding:clamp(3px,.6vh,6px)}
+  }
+  @media (max-height:700px){
+    .volume-wrap{gap:5px;padding:5px}
+    .volume-list{gap:4px}
+    .volume-row{padding:5px 8px;border-radius:8px}
+    .volume-row span{font-size:clamp(11px,1.5vw,16px)}
+    .volume-row strong{font-size:clamp(17px,2.5vw,26px)}
+    .warning{min-height:28px;font-size:clamp(10px,1.3vw,14px);padding:3px 6px}
+    .legend{font-size:clamp(9px,1vw,11px);line-height:1.2}
+  }
+  @media (max-width:520px){
+    .panel{border-radius:12px}
+    .panel h2{padding:11px 10px 8px}
+    .stage{padding:4px}
+    .op-btn{min-height:58px}
+    .volume-row{gap:5px;padding:7px 8px}
+    .volume-row span{font-size:clamp(12px,3.5vw,16px)}
+    .volume-row strong{font-size:clamp(18px,5vw,25px)}
+    .legend{font-size:11px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="grid">
+    <section class="panel" id="panel1">
+      <h2>裝置操作區</h2>
+      <div class="stage">
+        <canvas id="mainCanvas" aria-label="吸量管、安全吸球與燒杯主視圖"></canvas>
+      </div>
+    </section>
+
+    <section class="panel" id="panel2">
+      <h2>安全吸球放大圖</h2>
+      <div class="stage">
+        <canvas id="bulbCanvas" aria-label="安全吸球放大圖"></canvas>
+      </div>
+    </section>
+
+    <section class="panel" id="panel3">
+      <h2>安全吸球操作按鈕</h2>
+      <div class="stage">
+        <div class="controls">
+          <button class="op-btn" type="button" data-action="A">
+            <span class="key">A</span>let out Air
+          </button>
+          <button class="op-btn" type="button" data-action="S">
+            <span class="key">S</span>Suck in liquid
+          </button>
+          <button class="op-btn" type="button" data-action="E">
+            <span class="key">E</span>Empty the pipette
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel4">
+      <h2>溶液體積</h2>
+      <div class="volume-wrap">
+        <div class="volume-list">
+          <div class="volume-row"><span>分度吸量管</span><strong id="volumeValue">0.0 mL</strong></div>
+          <div class="volume-row"><span>燒杯 A</span><strong id="beakerAValue">100.0 mL</strong></div>
+          <div class="volume-row"><span>燒杯 B</span><strong id="beakerBValue">0.0 mL</strong></div>
+        </div>
+        <div id="warning" class="warning hidden">⚠ 分度吸量管液面已超過 0 mL 刻度！</div>
+        <div class="legend">分度吸量管的容量為25 mL；超過刻度0 mL時，禁止移動操作。</div>
+      </div>
+    </section>
+  </main>
+  <footer class="copyright">© 2026 Wan-Tzu Huang. All Rights Reserved.</footer>
+</div>
+
+<script>
+"use strict";
+/* v21：修正內嵌瀏覽器移動鎖定；完整吸球回彈對應 40 mL，總吸液上限 40 mL。 */
+
+/* =========================================================
+   核心狀態
+   ========================================================= */
+const state = {
+  bulbDeflation: 0.0, pipetteVolume: 0.0,
+  beakerAVolume: 100.0, beakerBVolume: 0.0,
+  isAPressed:false,isSPressed:false,isEPressed:false,
+  activeAction:null,actionOrder:0,pressedOrder:{A:0,S:0,E:0},
+  displayVolume:0.0,displayBulbDeflation:0.0,
+  displayAVolume:100.0,displayBVolume:0.0,
+  firstMoveUnlocked:false,
+  needsAAfterBulbRecovered:false,
+  currentBeaker:"A",
+  deviceX:-160,deviceY:340,moving:false,
+  moveToX:-160,moveToY:340,movePhase:"idle",moveTargetBeaker:null,
+  moveLiftY:55,dragCandidate:null,longPressTimer:null,dragStarted:false
+};
+
+/* =========================================================
+   可調參數
+   ========================================================= */
+const CONFIG = {
+  SUCK_RATE: 5.0,             // mL/s
+  EMPTY_RATE: 5.0,            // mL/s
+  BULB_DEFLATE_RATE: 1 / 3,   // 約 3 秒由 0 → 1
+  SUCTION_PER_FULL_BULB: 40.0, // 吸球完全壓縮的理論吸液量；不等於 25 mL 刻度上限
+  MAX_PIPETTE_VOLUME: 40.0,
+  WARNING_ON: 25.5,
+  WARNING_OFF: 25.0,
+  BEAKER_INITIAL: 100.0,
+  LONG_PRESS_MS: 500,
+  INSERT_DEPTH: 150,
+  MOVE_SPEED: 6.0,             // 器材移動動畫速度
+  WORLD_W: 1600,
+  WORLD_H: 1980,
+  BEAKER_A_X: -160,
+  BEAKER_B_X: 680,
+  BEAKER_Y: 385,
+  BULB_SMOOTH: 12.0,
+  VOLUME_SMOOTH: 14.0
+};
+
+/* =========================================================
+   DOM
+   ========================================================= */
+const mainCanvas = document.getElementById("mainCanvas");
+const bulbCanvas = document.getElementById("bulbCanvas");
+const mainCtx = mainCanvas.getContext("2d");
+const bulbCtx = bulbCanvas.getContext("2d");
+const volumeEl = document.getElementById("volumeValue");
+const beakerAEl = document.getElementById("beakerAValue");
+const beakerBEl = document.getElementById("beakerBValue");
+const warningEl = document.getElementById("warning");
+const actionButtons = [...document.querySelectorAll(".op-btn")];
+
+/* =========================================================
+   共用繪圖工具
+   ========================================================= */
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeToward(current, target, speed, dt) {
+  const t = 1 - Math.exp(-speed * dt);
+  return lerp(current, target, t);
+}
+
+function drawTextCentered(ctx, text, x, y, size, color, weight="400") {
+  ctx.save();
+  ctx.font = `${weight} ${size}px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+function drawBadge(ctx, x, y, r, label, pressed, scale=1) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+
+  const g = ctx.createLinearGradient(x-r,y-r,x+r,y+r);
+  if (pressed) {
+    g.addColorStop(0, "#d8f8ff");
+    g.addColorStop(1, "#69c7ea");
+  } else {
+    g.addColorStop(0, "#eefbff");
+    g.addColorStop(1, "#bceaff");
+  }
+  ctx.fillStyle = g;
+  ctx.fill();
+
+  ctx.lineWidth = 3 * scale;
+  ctx.strokeStyle = pressed ? "#0b79a0" : "#0759bb";
+  ctx.stroke();
+
+  drawTextCentered(ctx, label, x, y+1*scale, 31*scale, "#083e99", "700");
+  ctx.restore();
+}
+
+function drawWarningGlow(ctx, x, y, radius, time) {
+  const pulse = 0.45 + 0.35 * Math.sin(time * 7);
+  ctx.save();
+  ctx.globalAlpha = pulse;
+  ctx.shadowColor = "#e63946";
+  ctx.shadowBlur = 28;
+  ctx.fillStyle = "#e63946";
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function blueGrad(ctx,x1,y1,x2,y2){
+  const g=ctx.createLinearGradient(x1,y1,x2,y2);
+  g.addColorStop(0,"#72cfff");
+  g.addColorStop(.45,"#168ef1");
+  g.addColorStop(1,"#0067d8");
+  return g;
+}
+
+/* =========================================================
+   drawBeaker(ctx, x, y, scale, state)
+   幾何沿用上一階段 SVG
+   ========================================================= */
+function drawBeaker(ctx, x, y, scale, s) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  const bodyPath = new Path2D();
+  bodyPath.moveTo(305,1035);
+  bodyPath.quadraticCurveTo(315,1010,350,1005);
+  bodyPath.lineTo(735,1005);
+  bodyPath.quadraticCurveTo(770,1010,780,1035);
+  bodyPath.lineTo(748,1450);
+  bodyPath.quadraticCurveTo(744,1492,700,1500);
+  bodyPath.lineTo(385,1500);
+  bodyPath.quadraticCurveTo(341,1492,337,1450);
+  bodyPath.closePath();
+
+  /* 玻璃本體 */
+  const glass = ctx.createLinearGradient(305,0,780,0);
+  glass.addColorStop(0,"rgba(191,234,255,.52)");
+  glass.addColorStop(.18,"rgba(255,255,255,.20)");
+  glass.addColorStop(.55,"rgba(217,245,255,.10)");
+  glass.addColorStop(.82,"rgba(255,255,255,.35)");
+  glass.addColorStop(1,"rgba(117,201,255,.48)");
+  ctx.fillStyle = glass;
+  ctx.fill(bodyPath);
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#0877d9";
+  ctx.stroke(bodyPath);
+
+  /*
+    100 mL 液面：與上一階段 SVG 的 1135 座標對齊。
+    0 mL → 1450；100 mL → 1135。
+  */
+  const liquidTop = 1135 + (100 - clamp(s.beakerVolume,0,100)) * 3.75;
+
+  ctx.save();
+  ctx.clip(bodyPath);
+
+  if (s.beakerVolume > 0.0001) {
+    const liquid = ctx.createLinearGradient(0,liquidTop,0,1500);
+    liquid.addColorStop(0,"rgba(142,202,230,.72)");
+    liquid.addColorStop(1,"rgba(33,158,188,.28)");
+    ctx.fillStyle = liquid;
+    ctx.fillRect(300,liquidTop,490,950);
+
+    /* 下彎彎月面，最低點對應液面；空杯不畫液面 */
+    ctx.beginPath();
+    ctx.moveTo(327,liquidTop);
+    ctx.quadraticCurveTo(542,liquidTop+19,758,liquidTop);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#279fe3";
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  /* 杯緣 */
+  ctx.beginPath();
+  ctx.moveTo(310,1032);
+  ctx.bezierCurveTo(350,995,715,995,775,1032);
+  ctx.bezierCurveTo(718,1060,365,1060,310,1032);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(234,250,255,.62)";
+  ctx.fill();
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#0877d9";
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(333,1030);
+  ctx.bezierCurveTo(390,1012,690,1012,753,1030);
+  ctx.bezierCurveTo(688,1045,395,1045,333,1030);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(255,255,255,.45)";
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#55bdf5";
+  ctx.stroke();
+
+  /* 燒杯刻度與數字：沿用上一階段較細版本 */
+  ctx.save();
+  ctx.strokeStyle = "#0753a7";
+  ctx.fillStyle = "#0753a7";
+  ctx.lineWidth = 2.2;
+  ctx.font = '400 27px Arial,"Noto Sans TC",sans-serif';
+  ctx.textBaseline = "alphabetic";
+
+  const marks = [
+    [1135,45,"100"],[1210,33,"80"],[1285,45,"60"],
+    [1360,33,"40"],[1435,45,"20"]
+  ];
+  for (const [yy,len,label] of marks) {
+    ctx.beginPath();
+    ctx.moveTo(690-len,yy);
+    ctx.lineTo(690,yy);
+    ctx.stroke();
+    ctx.fillText(label,698,yy+9);
+  }
+
+  ctx.font = '400 14px Arial,"Noto Sans TC",sans-serif';
+  ctx.fillText("APPROX",690,1170);
+  ctx.font = '400 25px Arial,"Noto Sans TC",sans-serif';
+  ctx.fillText("100 mL",405,1430);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+/* =========================================================
+   drawPipette(ctx, x, y, scale, state)
+   幾何沿用上一階段 SVG
+   ========================================================= */
+function drawPipette(ctx, x, y, scale, s) {
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale,scale);
+
+  const tube = new Path2D();
+  tube.moveTo(500,460);
+  tube.lineTo(580,460);
+  tube.lineTo(580,1260);
+  tube.bezierCurveTo(580,1280,568,1300,552,1319);
+  tube.lineTo(542,1330);
+  tube.lineTo(532,1319);
+  tube.bezierCurveTo(516,1300,500,1280,500,1260);
+  tube.closePath();
+
+  /* 0 mL = 尖端，25 mL = 0 刻度 */
+  const tipY = 1330;
+  const topY = 660;
+  const yLiquid = tipY - (s.pipetteVolume / 25) * (tipY-topY);
+
+  /* 管內液體 */
+  ctx.save();
+  ctx.clip(tube);
+  const liquid = ctx.createLinearGradient(0,yLiquid,0,1400);
+  liquid.addColorStop(0,"rgba(142,202,230,.76)");
+  liquid.addColorStop(1,"rgba(33,158,188,.40)");
+  ctx.fillStyle = liquid;
+  ctx.fillRect(490,yLiquid-11,110,891);
+
+  /* yLiquid 定義為凹形彎月面的最低點；左右兩側對稱提高 11 px */
+  ctx.beginPath();
+  ctx.moveTo(500,yLiquid-11);
+  ctx.quadraticCurveTo(540,yLiquid,580,yLiquid-11);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#219ebc";
+  ctx.stroke();
+  ctx.restore();
+
+  /* 玻璃管 */
+  const glass = ctx.createLinearGradient(500,0,580,0);
+  glass.addColorStop(0,"rgba(191,234,255,.52)");
+  glass.addColorStop(.18,"rgba(255,255,255,.20)");
+  glass.addColorStop(.55,"rgba(217,245,255,.10)");
+  glass.addColorStop(.82,"rgba(255,255,255,.35)");
+  glass.addColorStop(1,"rgba(117,201,255,.48)");
+  ctx.fillStyle = glass;
+  ctx.fill(tube);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "#168bd8";
+  ctx.stroke(tube);
+
+  /* 再畫一次液面，使彎月面保持清楚 */
+  ctx.save();
+  ctx.clip(tube);
+  ctx.beginPath();
+  ctx.moveTo(500,yLiquid-11);
+  ctx.quadraticCurveTo(540,yLiquid,580,yLiquid-11);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#219ebc";
+  ctx.stroke();
+  ctx.restore();
+
+  /* 刻度 0～24 */
+  ctx.save();
+  ctx.strokeStyle = "#172b3b";
+  ctx.fillStyle = "#172b3b";
+  ctx.lineWidth = 1.8;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = '400 22px Arial,"Noto Sans TC",sans-serif';
+  ctx.fillText("mL",514,640);
+
+  for(let i=0;i<=24;i++){
+    const yy = 660 + i*25;
+    ctx.beginPath();
+    ctx.moveTo(505,yy);
+    ctx.lineTo(523,yy);
+    ctx.stroke();
+    ctx.font = '400 18px Arial,"Noto Sans TC",sans-serif';
+    ctx.fillText(String(i), i<10 ? 536 : 530, yy+6);
+  }
+  ctx.restore();
+
+  ctx.restore();
+}
+
+/* =========================================================
+   drawBulb(ctx, x, y, scale, state)
+   區域 1 與區域 2 共用完全相同的函式
+   ========================================================= */
+function drawBulb(ctx, x, y, scale, s) {
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(scale,scale);
+
+  /*
+    主球體為左右、上下對稱的橢圓。
+    只做水平方向壓縮；面積 = πab，垂直半徑不變，
+    因此 a → a/sqrt(2) 時體積約減半。
+  */
+  const sx = lerp(1,Math.SQRT1_2,clamp(s.displayBulbDeflation,0,1));
+
+  /*
+    主球體：嚴格使用「幾何對稱橢圓」。
+
+    未壓縮時：
+      中心 = (540, 218)
+      水平半徑 = 125
+      垂直半徑 = 128
+      外框 = x 415～665、y 90～346
+
+    因此左右、上下皆以同一中心軸完全對稱。
+    A 壓扁 / S 回彈時只縮放 X 軸，
+    Y 軸尺寸與中心位置完全不變。
+  */
+  const bodyCx = 540;
+  const bodyCy = 218;
+  const bodyRx = 125;
+  const bodyRy = 128;
+
+  ctx.save();
+
+  ctx.translate(bodyCx, bodyCy);
+  ctx.scale(sx, 1);
+
+  const blue =
+    ctx.createRadialGradient(
+      -55,
+      -73,
+      12,
+      70,
+      68,
+      250
+    );
+
+  blue.addColorStop(
+    0,
+    "#8bdcff"
+  );
+
+  blue.addColorStop(
+    .30,
+    "#35a9ff"
+  );
+
+  blue.addColorStop(
+    1,
+    "#0875dc"
+  );
+
+  /*
+    唯一的主球體輪廓：
+    不再使用任何不對稱 Bezier 路徑。
+  */
+  ctx.beginPath();
+
+  ctx.ellipse(
+    0,
+    0,
+    bodyRx,
+    bodyRy,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fillStyle = blue;
+  ctx.fill();
+
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#0068d8";
+  ctx.stroke();
+
+  /*
+    白色高光僅作為表面反光，
+    不參與主球體輪廓，因此不會改變橢圓球的幾何對稱性。
+  */
+  ctx.save();
+
+  ctx.globalAlpha = .82;
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    -63,
+    -52,
+    18,
+    46,
+    0.18,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fillStyle =
+    "rgba(255,255,255,1)";
+
+  ctx.fill();
+
+  ctx.restore();
+
+  ctx.restore();
+
+  /* 頂端短管 */
+  const top = new Path2D();
+  top.moveTo(505,18);
+  top.quadraticCurveTo(505,7,540,7);
+  top.quadraticCurveTo(575,7,575,18);
+  top.lineTo(570,90);
+  top.lineTo(510,90);
+  top.closePath();
+
+  ctx.fillStyle = blueGrad(ctx,505,0,575,0);
+  ctx.fill(top);
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#0068d8";
+  ctx.stroke(top);
+
+  /* 頂端開口 */
+  ctx.beginPath();
+  ctx.ellipse(540,18,42,13,0,0,Math.PI*2);
+  ctx.fillStyle = "#63c8ff";
+  ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "#005bc9";
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.ellipse(540,18,27,6,0,0,Math.PI*2);
+  ctx.fillStyle = "#e5f8ff";
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#118ee7";
+  ctx.stroke();
+
+  /* S 短頸 */
+  const neck = new Path2D();
+  neck.rect(500,346,80,114);
+  ctx.fillStyle = blueGrad(ctx,500,0,580,0);
+  ctx.fill(neck);
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#0068d8";
+  ctx.stroke(neck);
+
+  /* 側邊支管 */
+  const branch = new Path2D();
+  branch.moveTo(500,382);
+  branch.lineTo(390,382);
+  branch.bezierCurveTo(377,354,345,342,316,352);
+  branch.bezierCurveTo(285,362,268,389,272,420);
+  branch.bezierCurveTo(276,451,301,472,332,474);
+  branch.bezierCurveTo(360,476,384,459,394,432);
+  branch.lineTo(500,432);
+  branch.closePath();
+  ctx.fillStyle = blueGrad(ctx,260,340,500,470);
+  ctx.fill(branch);
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#0068d8";
+  ctx.stroke(branch);
+
+  /* 側邊開口 */
+  ctx.beginPath();
+  ctx.moveTo(276,372);
+  ctx.quadraticCurveTo(260,372,260,412);
+  ctx.quadraticCurveTo(260,452,276,452);
+  ctx.fillStyle = "#bcecff";
+  ctx.fill();
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#0058b8";
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.ellipse(276,412,9,38,0,0,Math.PI*2);
+  ctx.fillStyle = "#0c65bc";
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#003f91";
+  ctx.stroke();
+
+  /* A/S/E 三個按鈕 */
+  drawBadge(ctx,540,70,29,"A",s.isAPressed,1);
+  drawBadge(ctx,540,390,27,"S",s.isSPressed,1);
+  drawBadge(ctx,445,407,25,"E",s.isEPressed,1);
+
+  /* A 按壓提示 */
+  if (s.isAPressed) {
+    ctx.save();
+    ctx.globalAlpha = .9;
+    ctx.strokeStyle = "#ffffff";
+    ctx.fillStyle = "#ffffff";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(600,125);
+    ctx.lineTo(570,155);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(570,155);
+    ctx.lineTo(572,139);
+    ctx.lineTo(586,153);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  if (s.pipetteVolume > CONFIG.WARNING_ON) {
+    drawWarningGlow(ctx,445,407,31,performance.now()/1000);
+  }
+
+  ctx.restore();
+}
+
+/* =========================================================
+   主視圖
+   ========================================================= */
+function drawMain() {
+  const rect=mainCanvas.getBoundingClientRect(), w=Math.max(1,rect.width), h=Math.max(1,rect.height);
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  mainCanvas.width=Math.round(w*dpr); mainCanvas.height=Math.round(h*dpr);
+  mainCtx.setTransform(dpr,0,0,dpr,0,0); mainCtx.clearRect(0,0,w,h);
+  const scale=Math.min(w/CONFIG.WORLD_W,h/CONFIG.WORLD_H);
+  const ox=(w-CONFIG.WORLD_W*scale)/2, oy=(h-CONFIG.WORLD_H*scale)/2;
+  mainCtx.save(); mainCtx.translate(ox,oy); mainCtx.scale(scale,scale);
+  drawBeaker(mainCtx,CONFIG.BEAKER_A_X,CONFIG.BEAKER_Y,1,{...state,beakerVolume:state.displayAVolume});
+  drawBeaker(mainCtx,CONFIG.BEAKER_B_X,CONFIG.BEAKER_Y,1,{...state,beakerVolume:state.displayBVolume});
+  /* 只在各燒杯左下角標示 A / B，不顯示「燒杯 A／燒杯 B」文字 */
+  drawTextCentered(mainCtx,"A",CONFIG.BEAKER_A_X+275,CONFIG.BEAKER_Y+1475,34,"#17435c","700");
+  drawTextCentered(mainCtx,"B",CONFIG.BEAKER_B_X+275,CONFIG.BEAKER_Y+1475,34,"#17435c","700");
+  mainCtx.save(); mainCtx.translate(state.deviceX,state.deviceY);
+  drawPipette(mainCtx,0,0,1,state); drawBulb(mainCtx,0,0,1,state);
+  mainCtx.restore(); mainCtx.restore();
+}
+
+/* =========================================================
+   安全吸球放大圖
+   ========================================================= */
+function drawBulbStage() {
+  const rect = bulbCanvas.getBoundingClientRect();
+  const w = Math.max(1,rect.width);
+  const h = Math.max(1,rect.height);
+  const dpr = Math.min(window.devicePixelRatio || 1,2);
+
+  bulbCanvas.width = Math.round(w*dpr);
+  bulbCanvas.height = Math.round(h*dpr);
+  bulbCtx.setTransform(dpr,0,0,dpr,0,0);
+  bulbCtx.clearRect(0,0,w,h);
+
+  /*
+    ⚠ 待確認：放大圖約佔區域 2 的 70% 寬度。
+    同時以高度限制，保證所有元件都在區域內。
+  */
+  const baseW = 405;
+  const scale = Math.min((w*0.70)/baseW,(h*0.82)/474);
+  const actualW = 405*scale;
+  const actualH = 467*scale;
+  const x = (w-actualW)/2 - 260*scale;
+  const y = (h-actualH)/2 - 7*scale;
+
+  drawBulb(bulbCtx,x,y,scale,state);
+}
+
+/* =========================================================
+   體積顯示
+   ========================================================= */
+function updateReadout() {
+  volumeEl.textContent=`${state.displayVolume.toFixed(1)} mL`;
+  beakerAEl.textContent=`${state.displayAVolume.toFixed(1)} mL`;
+  beakerBEl.textContent=`${state.displayBVolume.toFixed(1)} mL`;
+  const over=state.pipetteVolume>CONFIG.WARNING_OFF+1e-6;
+  volumeEl.classList.toggle("warn",over);
+  warningEl.classList.toggle("hidden",!over);
+}
+
+/* =========================================================
+   三處按鈕同步高亮
+   ========================================================= */
+function updateButtons() {
+  actionButtons.forEach(btn=>{
+    const key = btn.dataset.action;
+    const pressed =
+      key==="A" ? state.isAPressed :
+      key==="S" ? state.isSPressed :
+      state.isEPressed;
+    btn.classList.toggle("pressed",pressed);
+    btn.setAttribute("aria-pressed",pressed ? "true" : "false");
+  });
+}
+
+/* =========================================================
+   按下 / 放開
+   ========================================================= */
+function pressAction(action) {
+  if (!["A","S","E"].includes(action)) return;
+  /* 移動中禁止開始 E，避免移動完成後意外排液。 */
+  if(action==="E" && state.moving) return;
+
+  const already =
+    action==="A" ? state.isAPressed :
+    action==="S" ? state.isSPressed :
+    state.isEPressed;
+  if(already) return;
+
+  state.actionOrder += 1;
+  state.pressedOrder[action] = state.actionOrder;
+
+  if(action==="A") {
+    /* A 與 S/E 互斥，避免同時壓縮與回彈吸球。 */
+    state.isSPressed=false;
+    state.isEPressed=false;
+    state.isAPressed=true;
+    state.needsAAfterBulbRecovered=false;
+    state.activeAction="A";
+  } else {
+    /* S/E 操作開始時停止 A；S 與 E 可同時保持按住並依有效性接手。 */
+    state.isAPressed=false;
+    if(action==="S") state.isSPressed=true;
+    if(action==="E") state.isEPressed=true;
+    updateActionAvailability();
+  }
+  updateButtons();
+}
+
+function releaseAction(action) {
+  if (!["A","S","E"].includes(action)) return;
+
+  if(action==="A") state.isAPressed=false;
+  if(action==="S") state.isSPressed=false;
+  if(action==="E") state.isEPressed=false;
+
+  updateActionAvailability();
+  updateButtons();
+}
+
+/* =========================================================
+   滑鼠 / 觸控 / Pointer Events
+   ========================================================= */
+function bindPressTarget(el, action) {
+  let pointerActive = false;
+
+  const start = (ev) => {
+    /* A/S/E 實體操作按鈕：連 touch 也阻止瀏覽器預設長按選字。
+       只作用於區域 3 按鈕，不影響 Canvas 上的雙指縮放。 */
+    ev.preventDefault();
+    pointerActive = true;
+    if (ev.pointerId != null && el.setPointerCapture) {
+      try { el.setPointerCapture(ev.pointerId); } catch(e) {}
+    }
+    pressAction(action);
+  };
+
+  const end = (ev) => {
+    if (ev.pointerType !== "touch") ev.preventDefault();
+    if (!pointerActive) return;
+    pointerActive = false;
+    releaseAction(action);
+  };
+
+  el.addEventListener("pointerdown",start,{passive:false});
+  el.addEventListener("pointerup",end,{passive:false});
+  el.addEventListener("pointercancel",end,{passive:false});
+  el.addEventListener("pointerleave",(ev)=>{
+    if (ev.pointerType==="mouse" && pointerActive) {
+      pointerActive=false;
+      releaseAction(action);
+    }
+  },{passive:false});
+}
+
+actionButtons.forEach(btn=>{
+  bindPressTarget(btn,btn.dataset.action);
+  /* iPad/Safari: CSS user-select alone may not suppress native long-press selection.
+     Region 3 buttons are dedicated controls, so consume touch gestures on the button itself. */
+  btn.addEventListener("touchstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+  btn.addEventListener("touchmove",  (ev)=>{ ev.preventDefault(); }, {passive:false});
+});
+
+/* 防止平板瀏覽器長按 A/S/E 時啟動文字選取。
+   iPad/iPadOS Safari 的長按選取行為有時不完全遵守 CSS user-select:none，
+   因此按鈕同時使用 CSS、touch/pointer preventDefault，以及選取事件攔截。 */
+
+// 觸控裝置上，按住 A/S/E 時明確阻止 Safari 進入原生文字選取流程。
+actionButtons.forEach(btn=>{
+  btn.addEventListener("pointerdown", (ev)=>{
+    if (ev.pointerType === "touch" || ev.pointerType === "pen") {
+      ev.preventDefault();
+    }
+  }, {passive:false});
+  btn.addEventListener("dragstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+});
+
+document.addEventListener("selectstart", (ev)=>{
+  if (ev.target.closest && ev.target.closest(".op-btn")) ev.preventDefault();
+},{passive:false});
+
+document.addEventListener("selectionstart", (ev)=>{
+  if (ev.target.closest && ev.target.closest(".op-btn")) ev.preventDefault();
+},{passive:false});
+
+document.addEventListener("contextmenu", (ev)=>{
+  if (ev.target.closest && ev.target.closest(".op-btn")) ev.preventDefault();
+},{passive:false});
+
+// Safari/iPadOS 偶爾會在長按後才建立 Selection；若選取來源是操作按鈕，立即清除。
+document.addEventListener("selectionchange", ()=>{
+  const sel=document.getSelection && document.getSelection();
+  if(!sel || sel.rangeCount===0)return;
+  const node=sel.anchorNode;
+  const el=node && (node.nodeType===1 ? node : node.parentElement);
+  if(el && el.closest && el.closest(".op-btn")){
+    sel.removeAllRanges();
+  }
+});
+
+
+/* =========================================================
+   主視圖 / 放大圖中的 A/S/E 圓形按鈕熱區
+   ========================================================= */
+function mainWorldPoint(ev) {
+  const r=mainCanvas.getBoundingClientRect(), scale=Math.min(r.width/CONFIG.WORLD_W,r.height/CONFIG.WORLD_H);
+  const ox=(r.width-CONFIG.WORLD_W*scale)/2, oy=(r.height-CONFIG.WORLD_H*scale)/2;
+  return {x:(ev.clientX-r.left-ox)/scale,y:(ev.clientY-r.top-oy)/scale};
+}
+function hitBadgeOnMain(canvas,ev) {
+  const p=mainWorldPoint(ev), X=p.x-state.deviceX, Y=p.y-state.deviceY;
+  if((X-540)**2+(Y-70)**2<=35**2)return "A";
+  if((X-540)**2+(Y-390)**2<=33**2)return "S";
+  if((X-445)**2+(Y-407)**2<=31**2)return "E";
+  return null;
+}
+
+function hitBadgeOnBulb(canvas, ev) {
+  const r=canvas.getBoundingClientRect();
+  const w=r.width,h=r.height;
+  const baseW=405;
+  const scale=Math.min((w*.70)/baseW,(h*.82)/474);
+  const actualW=405*scale;
+  const actualH=467*scale;
+  const x0=(w-actualW)/2-260*scale;
+  const y0=(h-actualH)/2-7*scale;
+  const X=(ev.clientX-r.left-x0)/scale;
+  const Y=(ev.clientY-r.top-y0)/scale;
+
+  if ((X-540)**2+(Y-70)**2 <= 35**2) return "A";
+  if ((X-540)**2+(Y-390)**2 <= 33**2) return "S";
+  if ((X-445)**2+(Y-407)**2 <= 31**2) return "E";
+  return null;
+}
+
+function bindCanvasBadge(canvas, hitTest) {
+  let active=null;
+
+  const down=(ev)=>{
+    if (ev.pointerType !== "touch") ev.preventDefault();
+    const action=hitTest(canvas,ev);
+    if(!action)return;
+
+    active=action;
+    if(canvas.setPointerCapture && ev.pointerId!=null){
+      try{canvas.setPointerCapture(ev.pointerId)}catch(e){}
+    }
+    pressAction(action);
+  };
+
+  const up=(ev)=>{
+    if (ev.pointerType !== "touch") ev.preventDefault();
+    if(!active)return;
+    releaseAction(active);
+    active=null;
+  };
+
+  canvas.addEventListener("pointerdown",down,{passive:false});
+  canvas.addEventListener("pointerup",up,{passive:false});
+  canvas.addEventListener("pointercancel",up,{passive:false});
+  canvas.addEventListener("pointerleave",(ev)=>{
+    if(ev.pointerType==="mouse" && active){
+      releaseAction(active);
+      active=null;
+    }
+  },{passive:false});
+}
+
+bindCanvasBadge(mainCanvas,hitBadgeOnMain);
+bindCanvasBadge(bulbCanvas,hitBadgeOnBulb);
+
+/* =========================================================
+   雙燒杯定位、長按拖曳與液面判定
+   ========================================================= */
+function beakerSurfaceY(which) {
+  const vol=which==="A"?state.beakerAVolume:state.beakerBVolume;
+  return CONFIG.BEAKER_Y+1135+(100-clamp(vol,0,100))*3.75;
+}
+function beakerBottomY(){return CONFIG.BEAKER_Y+1500;}
+function tipWorld(){return {x:540+state.deviceX,y:1330+state.deviceY};}
+function targetBeakerAtX(x) {
+  if(x>=CONFIG.BEAKER_A_X+337 && x<=CONFIG.BEAKER_A_X+748)return "A";
+  if(x>=CONFIG.BEAKER_B_X+337 && x<=CONFIG.BEAKER_B_X+748)return "B";
+  return null;
+}
+function canSuck() {
+  if(state.moving)return false;
+  const tip=tipWorld(),which=targetBeakerAtX(tip.x);
+  if(!which)return false;
+  const vol=which==="A"?state.beakerAVolume:state.beakerBVolume;
+  return vol>1e-6 && tip.y >= beakerSurfaceY(which)+0.5 && tip.y < beakerBottomY()-8;
+}
+function canEmpty() {
+  /* 以移動完成後記錄的目標燒杯判定，不依賴吸量管尖端的即時座標反推。
+     可避免內嵌瀏覽器動畫幀率／觸控座標差異造成 E 被誤判為不可操作。 */
+  if(state.moving || state.pipetteVolume<=1e-6)return false;
+  return state.currentBeaker==="A" || state.currentBeaker==="B";
+}
+function actionIsEligible(action) {
+  if(action==="A") return state.isAPressed && !state.moving;
+  if(action==="S") {
+    /* S 可在移動時讓吸球回彈，但必須有可回彈的壓縮量，且未被 A 重新壓縮。 */
+    return state.isSPressed && !state.needsAAfterBulbRecovered && state.bulbDeflation > 1e-6;
+  }
+  if(action==="E") return state.isEPressed && canEmpty();
+  return false;
+}
+function updateActionAvailability() {
+  /* 保留實際按住狀態；只重新選擇目前有效的操作。
+     先按優先，當原操作失效時，交由仍按住且有效的操作接手。 */
+  if(state.activeAction && actionIsEligible(state.activeAction)) return;
+  const candidates=["A","S","E"].filter(actionIsEligible);
+  candidates.sort((a,b)=>(state.pressedOrder[a]||0)-(state.pressedOrder[b]||0));
+  state.activeAction=candidates.length ? candidates[0] : null;
+}
+function isMoveVolumeAllowed() {
+  /* 直接以實際體積判定：25.3 mL（含極小浮點容差）可移動；
+     任何實際體積高於 25.3 mL 的情況都禁止移動，不先四捨五入。 */
+  return state.pipetteVolume <= 25.3 + 1e-8;
+}
+function startDeviceMove(target) {
+  if(state.moving||!target||!state.firstMoveUnlocked||!isMoveVolumeAllowed())return false;
+  state.moving=true;state.moveTargetBeaker=target;
+  state.moveToX=target==="A"?CONFIG.BEAKER_A_X:CONFIG.BEAKER_B_X;
+  const targetTipY=Math.min(
+    beakerSurfaceY(target)+CONFIG.INSERT_DEPTH,
+    beakerBottomY()-15
+  );
+  state.moveToY=targetTipY-1330;
+  state.moveLiftY=CONFIG.BEAKER_Y+950-1330;
+  state.movePhase="lift";
+  state.isAPressed=false;state.isSPressed=false;state.isEPressed=false;state.activeAction=null;
+  updateButtons();
+  return true;
+}
+function advanceMove(dt) {
+  if(!state.moving)return;
+  const k=1-Math.exp(-CONFIG.MOVE_SPEED*dt);
+  if(state.movePhase==="lift") {
+    state.deviceY=lerp(state.deviceY,state.moveLiftY,k);
+    if(Math.abs(state.deviceY-state.moveLiftY)<1.2){state.deviceY=state.moveLiftY;state.movePhase="horizontal";}
+  } else if(state.movePhase==="horizontal") {
+    state.deviceX=lerp(state.deviceX,state.moveToX,k);
+    if(Math.abs(state.deviceX-state.moveToX)<1.2){state.deviceX=state.moveToX;state.movePhase="lower";}
+  } else if(state.movePhase==="lower") {
+    const targetTipY=Math.min(
+      beakerSurfaceY(state.moveTargetBeaker)+CONFIG.INSERT_DEPTH,
+      beakerBottomY()-15
+    );
+    const finalY=targetTipY-1330;
+    state.deviceY=lerp(state.deviceY,finalY,k);
+    if(Math.abs(state.deviceY-finalY)<1.2){
+      state.deviceY=finalY;state.currentBeaker=state.moveTargetBeaker;
+      state.moveTargetBeaker=null;state.movePhase="idle";state.moving=false;
+    }
+  }
+}
+function isOnMovableApparatus(lx,ly) {
+  /* 僅接受實際球體與玻璃吸量管管身；不把旁邊的 A/S/E 操作區、側支管、標示或空白區算成移動熱區。 */
+  const sx=lerp(1,Math.SQRT1_2,clamp(state.displayBulbDeflation,0,1));
+  const bulbXRadius=125*sx+8; // 依球體壓縮狀態調整，另留少量觸控容差
+  const bulbYRadius=128+8;
+  const onBulb=((lx-540)**2)/(bulbXRadius**2)+((ly-218)**2)/(bulbYRadius**2)<=1;
+
+  /* 吸量管本體實際約 x=500～580；縮小舊版過寬的熱區。 */
+  const onPipette=lx>=494&&lx<=586&&ly>=460&&ly<=1340;
+
+  /* 即使碰到操作按鈕邊緣，也不能被誤判成器材移動長按。 */
+  const nearActionBadge=
+    (lx-540)**2+(ly-70)**2<=50**2 ||
+    (lx-540)**2+(ly-390)**2<=48**2 ||
+    (lx-445)**2+(ly-407)**2<=46**2;
+
+  return !nearActionBadge && (onBulb||onPipette);
+}
+
+function beginLongPressDrag(ev) {
+  if(state.moving||!state.firstMoveUnlocked||!isMoveVolumeAllowed())return;
+  const p=mainWorldPoint(ev),lx=p.x-state.deviceX,ly=p.y-state.deviceY;
+  if(!isOnMovableApparatus(lx,ly))return;
+  state.dragCandidate={pointerId:ev.pointerId,startX:p.x,startY:p.y};
+  state.dragStarted=false;
+  state.longPressTimer=setTimeout(()=>{
+    if(!state.dragCandidate||state.dragCandidate.pointerId!==ev.pointerId)return;
+    state.dragStarted=true;
+    const tip=tipWorld(),here=targetBeakerAtX(tip.x);
+    const target=here==="A"?"B":here==="B"?"A":(state.currentBeaker==="A"?"B":"A");
+    startDeviceMove(target);
+  },CONFIG.LONG_PRESS_MS);
+}
+mainCanvas.addEventListener("pointerdown",ev=>{
+  if(hitBadgeOnMain(mainCanvas,ev))return;
+  /* 觸控時保留瀏覽器原生雙指縮放；滑鼠／觸控筆仍阻止預設行為。
+     不對觸控指標強制 pointer capture，避免干擾 Safari 的多指手勢辨識。 */
+  if(ev.pointerType !== "touch") ev.preventDefault();
+  if(ev.pointerType !== "touch" && mainCanvas.setPointerCapture && ev.pointerId!=null){
+    try{mainCanvas.setPointerCapture(ev.pointerId)}catch(e){}
+  }
+  beginLongPressDrag(ev);
+},{passive:false});
+mainCanvas.addEventListener("pointermove",ev=>{
+  if(!state.dragCandidate||state.dragCandidate.pointerId!==ev.pointerId||state.dragStarted)return;
+  const p=mainWorldPoint(ev);
+  if(Math.hypot(p.x-state.dragCandidate.startX,p.y-state.dragCandidate.startY)>12){
+    clearTimeout(state.longPressTimer);state.longPressTimer=null;state.dragCandidate=null;
+  }
+},{passive:false});
+function endDevicePress(ev){
+  if(state.dragCandidate&&state.dragCandidate.pointerId===ev.pointerId){
+    clearTimeout(state.longPressTimer);state.longPressTimer=null;state.dragCandidate=null;
+  }
+}
+mainCanvas.addEventListener("pointerup",endDevicePress,{passive:false});
+mainCanvas.addEventListener("pointercancel",endDevicePress,{passive:false});
+mainCanvas.addEventListener("contextmenu",ev=>ev.preventDefault());
+
+/* =========================================================
+   鍵盤 A / S / E
+   ========================================================= */
+window.addEventListener("keydown",(ev)=>{
+  const key=ev.key.toUpperCase();
+  if(!["A","S","E"].includes(key))return;
+  if(ev.repeat)return;
+  ev.preventDefault();
+  pressAction(key);
+});
+
+window.addEventListener("keyup",(ev)=>{
+  const key=ev.key.toUpperCase();
+  if(!["A","S","E"].includes(key))return;
+  ev.preventDefault();
+  releaseAction(key);
+});
+
+window.addEventListener("blur",()=>{
+  ["A","S","E"].forEach(k=>releaseAction(k));
+});
+
+/* =========================================================
+   每幀更新：deltaTime + requestAnimationFrame
+   ========================================================= */
+let lastTime = performance.now();
+
+function update(dt, moveDt=dt) {
+  /* 移動動畫與 A/S 吸球操作使用較接近真實經過時間的步進。
+     一般 dt 仍限制在 0.05 秒供其他物理更新使用；若內嵌瀏覽器降低 rAF 頻率，
+     A/S 不應因此少算吸球壓縮／回彈量，否則完整回彈可能只吸入約 15 mL。 */
+  const actionDt=moveDt;
+  advanceMove(moveDt);
+  updateActionAvailability();
+
+  if(state.activeAction==="A" && state.isAPressed && !state.moving) {
+    state.bulbDeflation=clamp(state.bulbDeflation+CONFIG.BULB_DEFLATE_RATE*actionDt,0,1);
+    if(state.bulbDeflation>1e-6) state.needsAAfterBulbRecovered=false;
+  }
+
+  /* S 使吸球回彈；完整回彈一次的理論吸液量由 SUCTION_PER_FULL_BULB 決定（40 mL）。 */
+  let bulbRecoveryThisFrame=0;
+  let bulbRecoveredThisFrame=false;
+  if(state.activeAction==="S" && state.isSPressed) {
+    const beforeRecovery=state.bulbDeflation;
+    state.bulbDeflation=clamp(state.bulbDeflation-CONFIG.BULB_DEFLATE_RATE*actionDt,0,1);
+    bulbRecoveryThisFrame=Math.max(0,beforeRecovery-state.bulbDeflation);
+    if(state.bulbDeflation<=1e-6) {
+      state.bulbDeflation=0;
+      bulbRecoveredThisFrame=true;
+    }
+  }
+
+  if(state.activeAction==="S"&&state.isSPressed&&!state.needsAAfterBulbRecovered&&canSuck()) {
+    const tip=tipWorld(),which=targetBeakerAtX(tip.x);
+    const source=which==="A"?state.beakerAVolume:state.beakerBVolume;
+    /* 首次解鎖只是一個一次性門檻，不是吸液停止點。
+       保留真實吸入量，不把體積強制修正為 25.0 mL，也不自動放開 S。
+       顯示到 0.1 mL 時，24.95 mL 起即可顯示為 25.0 mL，因此在此附近解鎖，
+       避免因每幀吸液跨過精確 25.000 mL 而讓學生卡住。 */
+    const capacity=Math.max(0,CONFIG.MAX_PIPETTE_VOLUME-state.pipetteVolume);
+    const requested=bulbRecoveryThisFrame*CONFIG.SUCTION_PER_FULL_BULB;
+    const dv=Math.max(0,Math.min(requested,capacity,source));
+    if(dv>0) {
+      state.pipetteVolume+=dv;
+      if(which==="A")state.beakerAVolume-=dv;else state.beakerBVolume-=dv;
+      if(!state.firstMoveUnlocked && state.pipetteVolume >= 24.95) {
+        state.firstMoveUnlocked=true;
+      }
+    }
+  }
+  /* 先計入吸球最後一小段回彈所吸入的液體，再鎖定 S，確保完整回彈總量為 40 mL。 */
+  if(bulbRecoveredThisFrame) state.needsAAfterBulbRecovered=true;
+
+  if(state.activeAction==="E"&&state.isEPressed&&canEmpty()) {
+    const which=state.currentBeaker;
+    const dv=Math.min(CONFIG.EMPTY_RATE*actionDt,state.pipetteVolume);
+    if(dv>0) {
+      state.pipetteVolume=Math.max(0,state.pipetteVolume-dv);
+      /* 體積顯示至 0.1 mL；回到顯示 25.0 mL 時，消除微小浮點殘差。 */
+      if(Math.round((state.pipetteVolume+1e-8)*10)/10===25.0 && state.pipetteVolume<=25.05) {
+        const residual=state.pipetteVolume-25.0;
+        state.pipetteVolume=25.0;
+        if(which==="A")state.beakerAVolume+=residual;
+        else state.beakerBVolume+=residual;
+      }
+      if(which==="A")state.beakerAVolume=Math.min(100,state.beakerAVolume+dv);
+      else state.beakerBVolume=Math.min(100,state.beakerBVolume+dv);
+    }
+  }
+  if(state.pipetteVolume<1e-7)state.pipetteVolume=0;
+  if(state.beakerAVolume<1e-7)state.beakerAVolume=0;
+  if(state.beakerBVolume<1e-7)state.beakerBVolume=0;
+  const total=state.pipetteVolume+state.beakerAVolume+state.beakerBVolume;
+  if(Math.abs(total-100)>1e-5) {
+    const correction=100-total;
+    const target=targetBeakerAtX(tipWorld().x);
+    if(target==="A")state.beakerAVolume=Math.max(0,state.beakerAVolume+correction);
+    else if(target==="B")state.beakerBVolume=Math.max(0,state.beakerBVolume+correction);
+  }
+  if(!isMoveVolumeAllowed()&&state.dragCandidate){
+    clearTimeout(state.longPressTimer);state.longPressTimer=null;state.dragCandidate=null;
+  }
+  state.displayVolume=easeToward(state.displayVolume,state.pipetteVolume,CONFIG.VOLUME_SMOOTH,dt);
+  state.displayAVolume=easeToward(state.displayAVolume,state.beakerAVolume,CONFIG.VOLUME_SMOOTH,dt);
+  state.displayBVolume=easeToward(state.displayBVolume,state.beakerBVolume,CONFIG.VOLUME_SMOOTH,dt);
+  state.displayBulbDeflation=easeToward(state.displayBulbDeflation,state.bulbDeflation,CONFIG.BULB_SMOOTH,dt);
+  if(Math.abs(state.displayVolume-state.pipetteVolume)<.0001)state.displayVolume=state.pipetteVolume;
+  if(Math.abs(state.displayAVolume-state.beakerAVolume)<.0001)state.displayAVolume=state.beakerAVolume;
+  if(Math.abs(state.displayBVolume-state.beakerBVolume)<.0001)state.displayBVolume=state.beakerBVolume;
+  if(Math.abs(state.displayBulbDeflation-state.bulbDeflation)<.0001)state.displayBulbDeflation=state.bulbDeflation;
+}
+
+function render() {
+  drawMain();
+  drawBulbStage();
+  updateReadout();
+  updateButtons();
+}
+
+function frame(now) {
+  const rawDt=Math.max(0,(now-lastTime)/1000);
+  lastTime=now;
+  const dt=clamp(rawDt,0,0.05);
+  const moveDt=clamp(rawDt,0,2.0);
+
+  update(dt,moveDt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+/* =========================================================
+   初始與尺寸變更
+   ========================================================= */
+function resize() {
+  render();
+}
+
+window.addEventListener("resize",resize,{passive:true});
+window.addEventListener(
+  "orientationchange",
+  ()=>setTimeout(resize,100),
+  {passive:true}
+);
+
+render();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
